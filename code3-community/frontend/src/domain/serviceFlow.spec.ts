@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SERVICE_GROUPS, groupServices, nextServiceStatus, serviceActionLabel, serviceCardLabel } from './serviceFlow'
+import { SERVICE_GROUPS, completeWithRecord, groupServices, nextServiceStatus, serviceActionLabel, serviceCardLabel } from './serviceFlow'
 import type { ServiceTask } from '../types/community'
 
 const task = (id: string, status: ServiceTask['status']): ServiceTask => ({
@@ -50,5 +50,15 @@ describe('serviceFlow', () => {
     const groups = groupServices(tasks)
     expect(groups[0].items).toHaveLength(0)
     expect(groups[1].items.map((item) => item.id)).toEqual(['a'])
+  })
+
+  it('完成服务时保存服务记录，空记录被拒', () => {
+    const t = task('a', '服务中')
+    expect(completeWithRecord(t, '已协助填写申请表并提交')).toBe('已完成')
+    expect(t.record).toBe('已协助填写申请表并提交')
+
+    const blank = task('b', '服务中')
+    expect(completeWithRecord(blank, '   ')).toBe('服务中')
+    expect(blank.record).toBeUndefined()
   })
 })

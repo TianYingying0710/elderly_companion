@@ -17,6 +17,14 @@ export function serviceActionLabel(status: ServiceStatus): string {
   return '关闭'
 }
 
+/** 完成服务：非空记录才落库，空记录保持「服务中」不变。返回推进后的状态。 */
+export function completeWithRecord(task: ServiceTask, record: string): ServiceStatus {
+  const trimmed = record.trim()
+  if (!trimmed) return task.status
+  task.record = trimmed
+  return nextServiceStatus(task.status)
+}
+
 /** 卡片右侧提示文案；已完成返回空串，由 ✓ 标记代替。 */
 export function serviceCardLabel(status: ServiceStatus): string {
   if (status === '待接收') return '接收任务'

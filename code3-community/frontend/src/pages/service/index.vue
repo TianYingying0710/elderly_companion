@@ -5,7 +5,7 @@ import BottomSheet from '../../components/BottomSheet.vue'
 import PageHeader from '../../components/PageHeader.vue'
 import ScreenIdentity from '../../components/ScreenIdentity.vue'
 import { useToast } from '../../composables/useToast'
-import { groupServices, nextServiceStatus, serviceActionLabel } from '../../domain/serviceFlow'
+import { completeWithRecord, groupServices, nextServiceStatus, serviceActionLabel } from '../../domain/serviceFlow'
 import { createServices } from '../../mock/community'
 import type { ServiceTask } from '../../types/community'
 
@@ -35,11 +35,18 @@ function advance() {
   if (task.status === '待接收') {
     task.status = nextServiceStatus(task.status)
     tip('已接收该社区服务')
-  } else if (task.status === '服务中') {
-    task.status = nextServiceStatus(task.status)
-    tip('服务记录已保存')
+    closeDetail()
+    return
   }
-  closeDetail()
+  if (task.status === '服务中') {
+    const next = completeWithRecord(task, note.value)
+    if (next === '服务中') {
+      tip('请先填写服务记录')
+      return
+    }
+    tip('服务记录已保存')
+    closeDetail()
+  }
 }
 </script>
 
@@ -99,6 +106,10 @@ function advance() {
         <view class="detail-row">
           <view class="detail-label">当前状态</view>
           <view class="detail-value">{{ current.status }}</view>
+        </view>
+        <view v-if="current.record" class="detail-row">
+          <view class="detail-label">服务记录</view>
+          <view class="detail-value">{{ current.record }}</view>
         </view>
       </view>
 

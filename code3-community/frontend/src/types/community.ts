@@ -43,6 +43,8 @@ export interface ServiceTask {
   location: string
   description: string
   status: ServiceStatus
+  /** 完成时填写的服务记录；未完成时为 undefined */
+  record?: string
 }
 
 export type KnowledgeStatus = '待确认' | '已启用' | '已停用'
@@ -64,4 +66,6 @@ export interface Course {
   duration: string
   note: string
   status: CourseStatus
+  /** 课程正文；新建/编辑时填写 */
+  content?: string
 }
