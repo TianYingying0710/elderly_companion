@@ -1,0 +1,2 @@
+-e ../../code4-shared
+-e .[test]

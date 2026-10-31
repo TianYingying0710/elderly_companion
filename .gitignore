@@ -1,0 +1,36 @@
+# Environment files and secrets
+.env
+.env.*
+!.env*.example
+
+# Frontend dependencies and builds
+node_modules/
+dist/
+unpackage/
+*.tsbuildinfo
+.gradle/
+**/android/local.properties
+**/android/app/build/
+
+# Python artifacts and environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# AI assistant workspace data (session scratch files, local memory notes)
+.workbuddy/
+
+# Databases and generated data are forbidden in this phase
+*.db
+*.sqlite
+*.sqlite3
+

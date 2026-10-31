@@ -1,0 +1,2 @@
+<script setup lang="ts">import type {ElderApp} from '../../composables/useElderApp';defineProps<{app:ElderApp}>();</script>
+<template><div class="content"><section v-if="app.state.data" class="card"><button v-for="item in app.state.data.messages" :key="item.id" class="row" @click="app.go('message-detail',item.id)"><span><strong>{{ item.title }}</strong><small>{{ item.text }}</small><small>{{ item.time }}</small></span><span>›</span></button></section><p v-else class="empty">消息服务尚未接入</p></div></template>

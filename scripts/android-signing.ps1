@@ -1,0 +1,1 @@
+function Get-SigningDigests([string[]]$Lines){$values=@($Lines|ForEach-Object{if($_-match 'SHA-256 digest:\s*([0-9a-fA-F]{64})'){$Matches[1].ToLowerInvariant()}}|Sort-Object -Unique);if($values.Count-eq 0){throw 'No valid SHA-256 signing certificate digest was found.'};return $values}

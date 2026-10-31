@@ -1,0 +1,11 @@
+{
+  "name": "银龄伴社区端",
+  "appid": "__UNI__SILVER_COMMUNITY",
+  "description": "银龄伴社区端空白框架",
+  "versionName": "0.1.0",
+  "versionCode": "1",
+  "transformPx": false,
+  "uniStatistics": { "enable": false },
+  "mp-weixin": { "appid": "", "setting": { "urlCheck": true }, "usingComponents": true },
+  "vueVersion": "3"
+}

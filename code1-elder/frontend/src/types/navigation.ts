@@ -1,0 +1,1 @@
+export type Page = 'home'|'chat'|'learn'|'me'|'settings'|'profile'|'devices'|'family'|'family-detail'|'course-detail'|'learning-history'|'service'|'service-detail'|'messages'|'message-detail'|'chat-history'|'requests'|'sos'

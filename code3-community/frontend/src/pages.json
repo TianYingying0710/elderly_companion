@@ -1,0 +1,41 @@
+{
+  "pages": [
+    { "path": "pages/rescue/index", "style": { "navigationBarTitleText": "救援处置" } },
+    { "path": "pages/service/index", "style": { "navigationBarTitleText": "社区服务协同" } },
+    { "path": "pages/content/index", "style": { "navigationBarTitleText": "内容发布" } },
+    { "path": "pages/knowledge/index", "style": { "navigationBarTitleText": "知识资料" } },
+    { "path": "pages/teaching/index", "style": { "navigationBarTitleText": "助老课程" } }
+  ],
+  "tabBar": {
+    "color": "#748097",
+    "selectedColor": "#2e63c3",
+    "backgroundColor": "#f0eff7",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/rescue/index",
+        "text": "救援处置",
+        "iconPath": "static/tabbar/rescue.png",
+        "selectedIconPath": "static/tabbar/rescue-active.png"
+      },
+      {
+        "pagePath": "pages/service/index",
+        "text": "社区服务",
+        "iconPath": "static/tabbar/service.png",
+        "selectedIconPath": "static/tabbar/service-active.png"
+      },
+      {
+        "pagePath": "pages/content/index",
+        "text": "内容发布",
+        "iconPath": "static/tabbar/content.png",
+        "selectedIconPath": "static/tabbar/content-active.png"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationStyle": "custom",
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f7fb"
+  }
+}
