@@ -43,6 +43,23 @@ types/          领域类型
 
 社区端当前不调用后端：`code3-community` 后端只有 `GET /health`，页面数据全部来自 `mock/community.ts` 的工厂函数。`docs/progress.md` 记录了这次解除「不做社区端业务页面」限制的边界——解除的只是 UI 与交互，数据库、真实数据、认证仍不涉及。
 
+## 社区端后端分层
+
+`code3-community/backend` 自 2026-10-31 起与老人端后端同构，但业务能力仍只有契约：
+
+```text
+api/            路由与请求/响应绑定，每个端点当前只抛「能力未接入」
+schemas/        Pydantic 模型：枚举、必填约束、时间必须带时区
+errors.py       CapabilityNotImplementedError → 501 + 共享错误体
+dependencies/   capability_not_implemented() 调用点
+services/       业务能力 Protocol，无实现
+repositories/   持久化 Protocol，无实现
+```
+
+依赖方向单向：`api → schemas / dependencies / errors`；`services` 与 `repositories` 只作为类型边界被引用。路由层不导入任何数据库驱动，`/health` 不依赖业务模块，因此业务能力缺失不影响启动与健康检查。
+
+4 个域共 10 条路径 / 12 个操作全部返回 `501`；非法输入在进入能力边界前由 `422` 拦截。传输值使用英文枚举（`pending` / `en_route` / `arrived` / `completed`），中文文案归前端映射，避免改文案破坏契约。
+
 ## 公共模块
 
 `code4-shared` 当前包含：
