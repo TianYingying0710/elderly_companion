@@ -80,7 +80,7 @@ repositories/   持久化 Protocol，无实现
 
 ## 配置与安全
 
-运行配置由环境变量提供。`.env.example` 只包含本地安全配置；真实 `.env` 和密钥不进入版本控制。缺少任何未来 AI 凭据都不得影响后端启动或健康检查。
+运行配置由环境变量或项目根目录的 `.env` 文件提供（后端通过 `python-dotenv` 加载）。`.env.example` 只包含本地安全配置；真实 `.env` 和密钥不进入版本控制。缺少任何未来 AI 凭据都不得影响后端启动或健康检查。
 
 源码与工具环境分离：仓库不包含 Python 虚拟环境、Android SDK、Gradle 分发包、模拟器或工具缓存。老人端 Android 构建从外部环境变量和被忽略的 `android/local.properties` 获取 SDK 位置，生成物保留在被忽略的构建目录中。监护人端和社区端的微信开发者工具只打开 uni-app 生成的 `dist/.../mp-weixin`，不承载源码。
 

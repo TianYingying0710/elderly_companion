@@ -29,11 +29,18 @@ def test_valid_contract_routes_return_only_the_not_implemented_error() -> None:
 def test_contract_routes_validate_input_before_reporting_missing_capability() -> None:
     client = TestClient(create_app())
 
-    assert client.get("/api/v1/courses/%20").status_code == 422
-    assert client.put(
+    blank_id = client.get("/api/v1/courses/%20")
+    assert blank_id.status_code == 422
+    assert blank_id.json()["error"]["code"] == "validation_failed"
+    assert any(f["path"] == "path.course_id" for f in blank_id.json()["error"]["fields"])
+
+    out_of_range = client.put(
         "/api/v1/learning-records/course-1",
         json={"progress_percent": 101},
-    ).status_code == 422
+    )
+    assert out_of_range.status_code == 422
+    assert out_of_range.json()["error"]["code"] == "validation_failed"
+    assert any(f["path"] == "body.progress_percent" for f in out_of_range.json()["error"]["fields"])
 
 
 def test_openapi_contains_only_the_approved_business_paths() -> None:

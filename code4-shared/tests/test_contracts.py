@@ -3,6 +3,7 @@ from silver_companion_shared.contracts.errors import (
     CAPABILITY_NOT_IMPLEMENTED,
     ErrorDetail,
     ErrorPayload,
+    to_validation_payload,
 )
 from silver_companion_shared.interfaces import (
     CommunityKnowledgeRetriever,
@@ -37,3 +38,21 @@ def test_capability_not_implemented_error_contract() -> None:
 
     assert payload == CAPABILITY_NOT_IMPLEMENTED
     assert set(payload) == {"error"}
+
+
+def test_to_validation_payload_maps_each_error_to_a_field() -> None:
+    class _Exc:
+        def errors(self) -> list[dict]:
+            return [
+                {"loc": ("body", "result"), "type": "missing", "msg": "Field required"},
+                {"loc": ("query", "limit"), "type": "greater_than_equal", "msg": "Input should be greater than or equal to 1"},
+            ]
+
+    payload = to_validation_payload(_Exc())
+
+    assert payload["error"]["code"] == "validation_failed"
+    assert payload["error"]["message"] == "请求参数不合法"
+    assert payload["error"]["fields"] == [
+        {"path": "body.result", "code": "missing", "message": "Field required"},
+        {"path": "query.limit", "code": "greater_than_equal", "message": "Input should be greater than or equal to 1"},
+    ]

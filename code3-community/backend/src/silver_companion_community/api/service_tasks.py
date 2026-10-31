@@ -8,8 +8,6 @@ from .params import PageLimit, ResourceId
 router = APIRouter(prefix="/service-tasks", tags=["service-tasks"])
 
 NOT_IMPLEMENTED = {501: {"description": "该业务能力尚未接入"}}
-NOT_FOUND = {404: {"description": "服务任务不存在"}}
-CONFLICT = {409: {"description": "不允许的状态推进"}}
 
 
 @router.get("", response_model=list[ServiceTask], responses=NOT_IMPLEMENTED)
@@ -23,7 +21,7 @@ async def list_service_tasks(
 @router.get(
     "/{task_id}",
     response_model=ServiceTask,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND},
+    responses=NOT_IMPLEMENTED,
 )
 async def get_service_task(task_id: ResourceId) -> ServiceTask:
     """单个服务任务详情。"""
@@ -33,7 +31,7 @@ async def get_service_task(task_id: ResourceId) -> ServiceTask:
 @router.post(
     "/{task_id}/transitions",
     response_model=ServiceTask,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND, **CONFLICT},
+    responses=NOT_IMPLEMENTED,
 )
 async def transition_service_task(
     task_id: ResourceId, transition: ServiceTransition

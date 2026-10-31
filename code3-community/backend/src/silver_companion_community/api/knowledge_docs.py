@@ -12,7 +12,6 @@ from .params import PageLimit, ResourceId
 router = APIRouter(prefix="/knowledge-docs", tags=["knowledge-docs"])
 
 NOT_IMPLEMENTED = {501: {"description": "该业务能力尚未接入"}}
-NOT_FOUND = {404: {"description": "知识文档不存在"}}
 
 
 @router.get("", response_model=list[KnowledgeDoc], responses=NOT_IMPLEMENTED)
@@ -26,7 +25,7 @@ async def list_knowledge_docs(
 @router.get(
     "/{doc_id}",
     response_model=KnowledgeDoc,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND},
+    responses=NOT_IMPLEMENTED,
 )
 async def get_knowledge_doc(doc_id: ResourceId) -> KnowledgeDoc:
     """单份知识资料详情。"""
@@ -36,7 +35,7 @@ async def get_knowledge_doc(doc_id: ResourceId) -> KnowledgeDoc:
 @router.patch(
     "/{doc_id}",
     response_model=KnowledgeDoc,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND},
+    responses=NOT_IMPLEMENTED,
 )
 async def update_knowledge_doc(doc_id: ResourceId, update: KnowledgeDocUpdate) -> KnowledgeDoc:
     """审核内容或启停；`content` 与 `status` 至少给一个。"""

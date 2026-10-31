@@ -58,8 +58,12 @@ def test_invalid_input_is_rejected_before_missing_capability() -> None:
     client = TestClient(create_app())
 
     # 空白 ID 不得被当成合法资源
-    assert client.get("/api/v1/courses/%20").status_code == 422
-    assert client.get("/api/v1/rescue-incidents/%20").status_code == 422
+    blank_course = client.get("/api/v1/courses/%20")
+    assert blank_course.status_code == 422
+    assert blank_course.json()["error"]["code"] == "validation_failed"
+    blank_rescue = client.get("/api/v1/rescue-incidents/%20")
+    assert blank_rescue.status_code == 422
+    assert any(f["path"] == "path.incident_id" for f in blank_rescue.json()["error"]["fields"])
 
     # 未知枚举值
     assert client.post(
@@ -71,9 +75,13 @@ def test_invalid_input_is_rejected_before_missing_capability() -> None:
     ).status_code == 422
 
     # 进入终态必须带处理结果
-    assert client.post(
+    terminal = client.post(
         "/api/v1/rescue-incidents/incident-1/transitions", json={"to": "completed"}
-    ).status_code == 422
+    )
+    assert terminal.status_code == 422
+    assert terminal.json()["error"]["code"] == "validation_failed"
+    # 模型级校验器（model_validator）的定位路径是请求体根 "body"
+    assert any(f["path"] == "body" for f in terminal.json()["error"]["fields"])
 
     # 分页边界
     assert client.get("/api/v1/rescue-incidents", params={"limit": 0}).status_code == 422

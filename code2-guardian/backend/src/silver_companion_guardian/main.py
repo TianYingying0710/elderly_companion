@@ -1,8 +1,11 @@
 import os
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from silver_companion_shared.contracts.health import HealthPayload
+
+load_dotenv()
 
 
 def create_app() -> FastAPI:

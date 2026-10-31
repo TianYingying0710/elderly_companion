@@ -8,7 +8,6 @@ from .params import PageLimit, ResourceId
 router = APIRouter(prefix="/courses", tags=["courses"])
 
 NOT_IMPLEMENTED = {501: {"description": "该业务能力尚未接入"}}
-NOT_FOUND = {404: {"description": "课程不存在"}}
 
 
 @router.get("", response_model=list[Course], responses=NOT_IMPLEMENTED)
@@ -24,7 +23,7 @@ async def list_courses(
 @router.get(
     "/{course_id}",
     response_model=Course,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND},
+    responses=NOT_IMPLEMENTED,
 )
 async def get_course(course_id: ResourceId) -> Course:
     """单门课程详情。"""
@@ -34,7 +33,7 @@ async def get_course(course_id: ResourceId) -> Course:
 @router.patch(
     "/{course_id}",
     response_model=Course,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND},
+    responses=NOT_IMPLEMENTED,
 )
 async def update_course_status(course_id: ResourceId, update: CourseStatusUpdate) -> Course:
     """发布 published / 下架 offline。"""

@@ -13,8 +13,6 @@ from .params import PageLimit, ResourceId
 router = APIRouter(prefix="/rescue-incidents", tags=["rescue-incidents"])
 
 NOT_IMPLEMENTED = {501: {"description": "该业务能力尚未接入"}}
-NOT_FOUND = {404: {"description": "事件不存在"}}
-CONFLICT = {409: {"description": "不允许的状态推进"}}
 
 
 @router.get("", response_model=list[RescueIncidentSummary], responses=NOT_IMPLEMENTED)
@@ -28,7 +26,7 @@ async def list_rescue_incidents(
 @router.get(
     "/{incident_id}",
     response_model=RescueIncidentDetail,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND},
+    responses=NOT_IMPLEMENTED,
 )
 async def get_rescue_incident(incident_id: ResourceId) -> RescueIncidentDetail:
     """详情包含家庭协同进度与 4 步时间轴。"""
@@ -38,7 +36,7 @@ async def get_rescue_incident(incident_id: ResourceId) -> RescueIncidentDetail:
 @router.post(
     "/{incident_id}/transitions",
     response_model=RescueIncidentDetail,
-    responses={**NOT_IMPLEMENTED, **NOT_FOUND, **CONFLICT},
+    responses=NOT_IMPLEMENTED,
 )
 async def transition_rescue_incident(
     incident_id: ResourceId, transition: RescueTransition
