@@ -113,6 +113,8 @@ function simulate() {
       </template>
     </PageHeader>
 
+    <view class="demo-banner">演示数据：本页老人信息与事件均为虚构示例，仅用于界面演示</view>
+
     <view class="rescue-list">
       <view v-for="item in incidents" :key="item.id" class="rescue-card" @tap="openDetail(item.id)">
         <view class="card-top">
@@ -230,6 +232,16 @@ function simulate() {
   background: #fff;
   font-size: 21rpx;
   font-weight: 700;
+}
+
+.demo-banner {
+  margin-bottom: 24rpx;
+  padding: 18rpx 24rpx;
+  border-radius: 16rpx;
+  color: #8a6d1d;
+  background: #fdf6e3;
+  font-size: 21rpx;
+  line-height: 1.5;
 }
 
 .rescue-list {

@@ -23,4 +23,29 @@ describe('community mini-program API client', () => {
 
     await expect(apiRequest('/health')).rejects.toThrow('API request failed: 503')
   })
+
+  it('surfaces the backend error code and field paths for validation failures', async () => {
+    const request = vi.fn((options: UniApp.RequestOptions) => {
+      options.success?.({
+        data: {
+          error: {
+            code: 'validation_failed',
+            message: '请求参数不合法',
+            fields: [{ path: 'body.result', code: 'missing', message: 'Field required' }],
+          },
+        },
+        statusCode: 422,
+        header: {},
+        cookies: [],
+      })
+      return {} as UniApp.RequestTask
+    })
+    const apiRequest = createApiClient('http://127.0.0.1:8003', request)
+
+    await expect(apiRequest('/rescue-incidents/1/transitions')).rejects.toMatchObject({
+      statusCode: 422,
+      code: 'validation_failed',
+      fields: [{ path: 'body.result', code: 'missing', message: 'Field required' }],
+    })
+  })
 })

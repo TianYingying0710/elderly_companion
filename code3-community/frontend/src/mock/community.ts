@@ -2,7 +2,8 @@ import { stamp } from '../domain/rescueFlow'
 import type { Course, GuardianProgress, KnowledgeDoc, RescueIncident, ServiceTask } from '../types/community'
 
 /**
- * 社区端 UI 演示数据。全部为前端内存态，不请求后端。
+ * 社区端 UI 演示数据。全部为前端内存态，不请求后端，仅用于演示界面。
+ * 所有姓名、地址均为虚构示例（示例老人 A/B、XX 小区），非真实个人信息。
  * 后续接入 `api/` 时，只需删除本文件并把工厂函数换成接口返回值。
  */
 
@@ -20,16 +21,16 @@ const cloneIncident = (incident: RescueIncident): RescueIncident => ({
 const INCIDENTS: RescueIncident[] = [
   {
     id: 'SOS-20261029-001',
-    name: '王建国',
+    name: '示例老人 A',
     type: '紧急求助',
     reason: '',
-    location: '幸福里 3 栋 2 单元 502',
+    location: 'XX 小区 3 栋 2 单元 502',
     time: '10-29 01:07',
     source: '硬件求助 · 实体 SOS 按钮',
     status: '待响应',
     stepTimes: ['10-29 01:07'],
     guardian: {
-      name: '王女士',
+      name: '示例监护人 A',
       stage: 0,
       times: ['01:07'],
       feedback: '暂无监护人反馈',
@@ -38,16 +39,16 @@ const INCIDENTS: RescueIncident[] = [
   },
   {
     id: 'SOS-20261029-002',
-    name: '李秀兰',
+    name: '示例老人 B',
     type: '紧急求助',
     reason: '身体不适',
-    location: '中心花园北门长椅',
+    location: 'XX 小区休闲广场北门长椅',
     time: '10-29 00:52',
     source: '软件求助 · 老人端一键求助',
     status: '已赶往现场',
     stepTimes: ['10-29 00:52'],
     guardian: {
-      name: '李先生',
+      name: '示例监护人 B',
       stage: 1,
       times: ['00:52', '00:54'],
       feedback: '监护人已查看，正在尝试联系老人',
@@ -56,17 +57,17 @@ const INCIDENTS: RescueIncident[] = [
   },
   {
     id: 'SOS-20261028-003',
-    name: '张桂英',
+    name: '示例老人 C',
     type: '紧急求助',
     reason: '',
-    location: '幸福里 6 栋 1 单元 201',
+    location: 'XX 小区 6 栋 1 单元 201',
     time: '10-28 01:10',
     source: '硬件求助 · 实体 SOS 按钮',
     status: '已完成处理',
     stepTimes: ['10-28 01:10', '10-28 01:14', '10-28 01:18', '10-28 01:32'],
     result: '已上门确认老人身体无碍，家中燃气阀门未关紧，已协助关闭并通知家属。',
     guardian: {
-      name: '张女士',
+      name: '示例监护人 C',
       stage: 2,
       times: ['01:10', '01:11', '01:13'],
       feedback: '已联系老人，确认社区人员已到场',
@@ -79,30 +80,30 @@ const SERVICES: ServiceTask[] = [
   {
     id: 'service-1',
     title: '公益课程线下答疑',
-    name: '王秀英',
+    name: '示例老人 A',
     type: '数字助老',
     time: '今天 14:00',
-    location: '社区养老服务中心 2 楼教室',
+    location: 'XX 社区养老服务中心 2 楼教室',
     description: '老人在学习微信视频通话时遇到操作问题，现场一对一指导',
     status: '待接收',
   },
   {
     id: 'service-2',
     title: '代缴水电费',
-    name: '周德明',
+    name: '示例老人 B',
     type: '代办服务',
     time: '今天 16:30',
-    location: '幸福里社区服务中心窗口',
+    location: 'XX 社区服务中心窗口',
     description: '按老人委托到社区窗口代缴本月水电费并回传缴费凭证',
     status: '服务中',
   },
   {
     id: 'service-3',
     title: '办事流程现场协助',
-    name: '刘桂芳',
+    name: '示例老人 C',
     type: '社区事务',
     time: '昨天 10:00',
-    location: '社区养老服务中心',
+    location: 'XX 社区养老服务中心',
     description: '协助老人填写养老补贴申请材料并在窗口办理',
     status: '已完成',
   },
@@ -167,10 +168,10 @@ interface SimSeed {
 }
 
 export const simPool: SimSeed[] = [
-  { name: '刘振国', location: '幸福里 8 栋 1 单元 401', guardian: '刘女士' },
-  { name: '陈玉兰', location: '幸福里 2 栋 3 单元 602', guardian: '陈先生' },
-  { name: '孙德海', location: '中心花园 5 号楼 203', guardian: '孙女士' },
-  { name: '吴凤芝', location: '幸福里 4 栋 2 单元 105', guardian: '吴先生' },
+  { name: '示例老人 D', location: 'XX 小区 8 栋 1 单元 401', guardian: '示例监护人 D' },
+  { name: '示例老人 E', location: 'XX 小区 2 栋 3 单元 602', guardian: '示例监护人 E' },
+  { name: '示例老人 F', location: 'XX 小区 5 号楼 203', guardian: '示例监护人 F' },
+  { name: '示例老人 G', location: 'XX 小区 4 栋 2 单元 105', guardian: '示例监护人 G' },
 ]
 
 /** 生成一条新的待响应事件。`seq` 从 0 递增，用于轮换人物并保证编号唯一。 */
