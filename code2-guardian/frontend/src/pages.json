@@ -1,4 +1,13 @@
 {
-  "pages": [{ "path": "pages/index/index", "style": { "navigationBarTitleText": "银龄伴监护人端" } }],
-  "globalStyle": { "navigationBarTextStyle": "black", "navigationBarBackgroundColor": "#ffffff", "backgroundColor": "#f5f7fb" }
+  "pages": [
+    { "path": "pages/index/index", "style": { "navigationStyle": "custom" } },
+    { "path": "pages/advice/index", "style": { "navigationBarTitleText": "AI 关怀建议" } },
+    { "path": "pages/messages/index", "style": { "navigationBarTitleText": "消息中心" } },
+    { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f0f4fa"
+  }
 }
