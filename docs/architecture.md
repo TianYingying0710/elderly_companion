@@ -22,9 +22,29 @@
 
 当前成功提供业务能力的后端接口有两类：无状态的 `GET /health`（三个后端）与社区端 `/api/v1/service-tasks` 下的 5 个社区服务任务端点。健康检查只返回服务标识和运行状态，不读取或写入数据。三个前端的 `src/api/client.ts` 提供统一 HTTP 封装，并从 `VITE_API_BASE_URL` 读取对应后端地址。老人端 Android 真机使用电脑的局域网地址，通过独立的 Capacitor 配置与原生工程封装，不影响另外两端。
 
-老人端后端已建立课程与学习记录的 `/api/v1` 契约骨架。路由、Pydantic schema、service Protocol 和 repository Protocol 相互分离，但没有 repository 实现；合法业务请求明确返回结构化 501。监护人端和社区端本轮没有新增业务路由，三个 FastAPI 后端仍完全独立。
+老人端后端已建立课程与学习记录的 `/api/v1` 契约骨架。路由、Pydantic schema、service Protocol 和 repository Protocol 相互分离，但没有 repository 实现；合法业务请求明确返回结构化 501。监护人端后端仍只有 `GET /health`；社区端已在服务任务域接入真实持久化（见「社区端后端分层」）；三个 FastAPI 后端仍完全独立，互不导入内部代码。
 
 老人端内部现按页面、领域类型和组合函数分层：公共组件依赖 `types` 中的稳定类型，不依赖 `demo/data.ts`；`useElderApp` 只作为导航、演示、聊天、求助和健康检查模块的组装边界。Android 普通构建与设备签名/覆盖安装验收相互独立。
+
+## 监护人端前端分层
+
+`code2-guardian/frontend` 自 2026-11-01 起是四页 UI 原型（`main` 的 `f5d073e` 基线），目录组织如下：
+
+```text
+pages/          四个页面，互不引用：index（老人画像/首页）、advice（AI 建议）、messages（消息中心）、profile（我的）
+components/     TabBar：四页共用的底部导航
+domain/         messages.ts：消息筛选等纯函数，由 vitest 覆盖
+mock/           data.ts：全部虚构演示数据的唯一来源
+types/          index.ts：领域类型
+api/client.ts   uni.request 封装（基址取 VITE_API_BASE_URL，默认 127.0.0.1:8002），当前无页面调用
+assets/         icons.ts 图标常量
+```
+
+依赖方向单向：`pages → components / domain / mock / types / assets`。页面直接读取 `mock/data.ts`，`messages` 页额外用 `domain/messages.ts` 做筛选；**没有** `mapper` / `composable` / `service` 层，也没有 DTO 与 ViewModel 的映射链路，因此四页展示的是静态虚构数据加本地纯函数筛选，不构成真实监护业务。`api/client.ts` 仅为后续接入准备的基础设施，没有任何页面 import 它。
+
+`code2-guardian/backend` 只有无状态的 `GET /health`（`status` / `service`），不引用业务模块、不访问数据库。前端与后端之间当前没有任何业务请求。
+
+接后端时需要新增的层次（本阶段未实现，仅作为边界说明）：`api/*` 按域收口路径、`mappers/` 做 DTO ↔ ViewModel、`composables/` 承担加载与错误态，并把页面对 `mock/` 的直接依赖替换为组合函数。
 
 ## 社区端前端分层
 
