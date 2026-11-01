@@ -183,6 +183,3 @@ Import `code2-guardian/frontend/dist/build/mp-weixin`; test first and repeat Tab
 Run from repository root: `git diff --check`, `git status --short --branch`, and inspect `git diff -- code2-guardian/frontend docs`.
 
 Expected: only approved guardian frontend, spec, plan, and necessary progress documentation changes; no dependency, backend, generated artifact, or recovery-directory changes.
-
-
-

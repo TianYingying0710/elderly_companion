@@ -82,6 +82,3 @@
 - 运行监护人端 `npm test`、`npm run type-check`、`npm run build:mp-weixin`。
 - 在微信开发者工具实测四个 Tab 的首次与再次切换、消息筛选状态保留、快速连点、首页折线不越界。
 - 最终确认 Git 只包含本设计批准范围内的文件。
-
-
-
