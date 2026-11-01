@@ -1,0 +1,16 @@
+<view class="tabbar">
+  <view class="tab-row">
+    <view
+      wx:for="{{items}}"
+      wx:key="key"
+      class="tab-item {{selected === index ? 'selected' : ''}}"
+      hover-class="tab-item--pressed"
+      data-index="{{index}}"
+      bindtap="switchTab"
+    >
+      <image class="tab-icon" src="{{selected === index ? item.selectedIconPath : item.iconPath}}" mode="aspectFit" />
+      <text class="tab-label">{{item.label}}</text>
+    </view>
+  </view>
+  <view class="safe-area" />
+</view>

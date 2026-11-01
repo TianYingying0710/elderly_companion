@@ -5,6 +5,18 @@
     { "path": "pages/messages/index", "style": { "navigationBarTitleText": "消息中心" } },
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } }
   ],
+  "tabBar": {
+    "custom": true,
+    "color": "#9aa3b2",
+    "selectedColor": "#2563eb",
+    "backgroundColor": "#ffffff",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "老人画像" },
+      { "pagePath": "pages/advice/index", "text": "AI建议" },
+      { "pagePath": "pages/messages/index", "text": "消息" },
+      { "pagePath": "pages/profile/index", "text": "我的" }
+    ]
+  },
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarBackgroundColor": "#ffffff",

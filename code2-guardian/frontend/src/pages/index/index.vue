@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { getCurrentInstance, onMounted } from 'vue'
-import TabBar from '../../components/TabBar.vue'
 import { ICONS } from '../../assets/icons'
+import { buildTrendPoints, heartRateTrend } from '../../domain/healthTrend'
 import {
   elderProfile,
   healthMetrics,
   healthUpdatedAt,
   reminders,
-  trendValues,
 } from '../../mock/data'
 
 const instance = getCurrentInstance()
@@ -23,6 +22,10 @@ const metricIcons: Record<string, string> = {
 const reminderIcons: Record<string, string> = {
   pill: ICONS.pillOrange,
   walk: ICONS.walkGreen,
+}
+
+function showPlannedFeature() {
+  uni.showToast({ title: '功能建设中', icon: 'none' })
 }
 
 /** 绘制近 7 天趋势折线（虚构演示数据） */
@@ -44,22 +47,23 @@ function drawTrend() {
       if (!ctx) return
       ctx.scale(dpr, dpr)
 
-      const padX = 6
-      const padY = 8
-      const min = Math.min(...trendValues)
-      const max = Math.max(...trendValues)
-      const span = max - min || 1
-      const pts = trendValues.map((v, i) => ({
-        x: padX + (i * (width - padX * 2)) / (trendValues.length - 1),
-        y: height - padY - ((v - min) * (height - padY * 2)) / span,
-      }))
+       ctx.clearRect(0, 0, width, height)
+       const padding = { left: 10, right: 10, top: 10, bottom: 12 }
+       const pts = buildTrendPoints(heartRateTrend.map((point) => point.value), width, height, padding)
+       if (pts.length === 0) return
+
+       ctx.save()
+       ctx.beginPath()
+       ctx.rect(padding.left, padding.top, width - padding.left - padding.right, height - padding.top - padding.bottom)
+       ctx.clip()
 
       // 面积填充
       ctx.beginPath()
       ctx.moveTo(pts[0].x, pts[0].y)
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-      ctx.lineTo(pts[pts.length - 1].x, height)
-      ctx.lineTo(pts[0].x, height)
+       const baseline = height - padding.bottom
+       ctx.lineTo(pts[pts.length - 1].x, baseline)
+       ctx.lineTo(pts[0].x, baseline)
       ctx.closePath()
       ctx.fillStyle = 'rgba(37, 99, 235, 0.08)'
       ctx.fill()
@@ -73,6 +77,7 @@ function drawTrend() {
       ctx.lineJoin = 'round'
       ctx.lineCap = 'round'
       ctx.stroke()
+       ctx.restore()
     })
     .exec()
 }
@@ -93,7 +98,7 @@ onMounted(drawTrend)
       </view>
 
       <!-- 老人卡片 -->
-      <view class="card elder-card">
+      <view class="card elder-card" @tap="showPlannedFeature">
         <view class="avatar avatar-elder">
           <image class="avatar-icon" :src="ICONS.userWhite" mode="aspectFit" />
         </view>
@@ -110,7 +115,10 @@ onMounted(drawTrend)
       <view class="card">
         <view class="card-head">
           <text class="card-title">健康概况</text>
-          <text class="card-extra">{{ healthUpdatedAt }}</text>
+          <view class="health-meta">
+            <text class="demo-tag">演示数据</text>
+            <text class="card-extra">{{ healthUpdatedAt }}</text>
+          </view>
         </view>
         <view class="metrics">
           <view v-for="m in healthMetrics" :key="m.key" class="metric">
@@ -126,20 +134,28 @@ onMounted(drawTrend)
       </view>
 
       <!-- 健康趋势 -->
-      <view class="card">
-        <view class="card-head">
-          <text class="card-title">健康趋势（近7天）</text>
+      <view class="card trend-card">
+        <view class="card-head" @tap="showPlannedFeature">
+          <view>
+            <view class="trend-title-row">
+              <text class="card-title">近7天健康趋势</text>
+              <text class="demo-tag">演示数据</text>
+            </view>
+            <text class="trend-metric">每日平均静息心率（次/分）</text>
+          </view>
           <view class="chevron" />
         </view>
         <view class="trend">
-          <image class="trend-bell" :src="ICONS.bellAmber" mode="aspectFit" />
           <canvas id="trendCanvas" type="2d" class="trend-canvas" />
+        </view>
+        <view class="trend-dates">
+          <text v-for="point in heartRateTrend" :key="point.dateLabel">{{ point.dateLabel.slice(3) }}</text>
         </view>
       </view>
 
       <!-- 今日提醒（只读展示） -->
       <view class="card">
-        <view class="card-head">
+        <view class="card-head" @tap="showPlannedFeature">
           <text class="card-title">今日提醒（{{ reminders.length }}）</text>
           <view class="chevron" />
         </view>
@@ -151,12 +167,10 @@ onMounted(drawTrend)
             <text class="reminder-title">{{ r.title }}</text>
             <text class="reminder-time">{{ r.time }}</text>
           </view>
-          <view class="circle" />
         </view>
       </view>
     </view>
 
-    <TabBar current="home" />
   </view>
 </template>
 
@@ -201,6 +215,9 @@ onMounted(drawTrend)
   border-radius: 24rpx;
   padding: 28rpx;
   margin-top: 24rpx;
+}
+.trend-card {
+  overflow: hidden;
 }
 .elder-card {
   display: flex;
@@ -263,8 +280,15 @@ onMounted(drawTrend)
   color: #1f2937;
 }
 .card-extra {
+  display: block;
+  margin-top: 6rpx;
   font-size: 22rpx;
   color: #9aa3b2;
+}
+.health-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 .metrics {
   display: flex;
@@ -315,20 +339,39 @@ onMounted(drawTrend)
   padding: 4rpx 20rpx;
 }
 .trend {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
   margin-top: 20rpx;
+  width: 100%;
+  overflow: hidden;
 }
-.trend-bell {
-  width: 36rpx;
-  height: 36rpx;
-  flex-shrink: 0;
-  margin-right: 12rpx;
+.trend-title-row {
+  display: flex;
+  align-items: center;
+}
+.demo-tag {
+  margin-left: 14rpx;
+  padding: 3rpx 12rpx;
+  border-radius: 999rpx;
+  background: #eef2f8;
+  color: #8a94a6;
+  font-size: 20rpx;
+}
+.trend-metric {
+  display: block;
+  margin-top: 8rpx;
+  color: #6b7280;
+  font-size: 22rpx;
 }
 .trend-canvas {
-  flex: 1;
-  height: 200rpx;
+  display: block;
+  width: 100%;
+  height: 180rpx;
+}
+.trend-dates {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4rpx;
+  color: #9aa3b2;
+  font-size: 18rpx;
 }
 .reminder {
   display: flex;
@@ -365,12 +408,5 @@ onMounted(drawTrend)
   margin-top: 6rpx;
   font-size: 22rpx;
   color: #9aa3b2;
-}
-.circle {
-  width: 36rpx;
-  height: 36rpx;
-  border: 3rpx solid #d3dae5;
-  border-radius: 50%;
-  flex-shrink: 0;
 }
 </style>

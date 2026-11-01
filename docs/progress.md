@@ -2,6 +2,10 @@
 
 更新日期：2026-11-01
 
+2026-11-01：监护人端首页与主导航加固（功能分支验证完成，待微信开发者工具人工验收）。四个一级页面由逐页 `redirectTo` 改为正式 `tabBar + switchTab`，使用单一微信原生 `custom-tab-bar`，扩大触控区并增加按压、并发锁与失败提示；Tab 页面再次显示时复用实例，消息筛选状态可保留。首页近 7 天趋势明确为虚构的“每日平均静息心率”演示数据，补日期与单位，canvas 使用有界坐标和裁剪避免覆盖标题；移除无业务含义的黄色铃铛与提醒空心圆，规划入口只提示“功能建设中”。监护人后端、AI 建议卡片、“我的”菜单、硬件与真实健康数据均未修改。前端 `npm test` 为 5 文件 / 19 项通过，类型检查与 `build:mp-weixin` 通过。
+
+2026-11-01：官方根验证脚本的后端工作目录问题已在 `b4f1411` 修复；脚本现在进入各组件根目录运行 pytest，完整入口已返回 exit 0。下文 `f5d073e` 收口记录中的 exit 1 是修复前历史证据。
+
 2026-11-01：主仓库合并后交付收口（仅验证与文档，未新增业务能力）。当前 `main` 基线为 `f5d073e`，同一提交同时包含监护人端四页 UI 原型与社区端「社区服务任务」前后端闭环。本轮按官方根脚本与组件级命令重跑测试、类型检查与微信小程序构建，并核对两个 `dist/build/mp-weixin` 产物；根脚本在老人端后端 `pytest` 处因工作目录相对路径失败而中断，组件级复跑全部通过（详见「验证结果」）。微信开发者工具对当前产物的预览因本机服务端口关闭被阻断，属工具权限限制，未修改源码或提交本地测试配置绕过。监护人端四页仍为 mock 演示 UI，不是真实监护业务闭环。
 
 2026-11-01：社区端「社区服务任务」完成交付收口（已实现）。① 前端本地校验不再退化为「操作失败，请重试」：`composable` 捕获 `ServiceTaskMappingError` 时保留 mapper 给出的具体原因（空字段、超长、非法日期），HTTP 错误仍走统一归一化。② 补两个真实竞争测试：同一 `tmp_path/community.db` 上两个独立 Repository/SQLite 连接用 `threading.Barrier` 同时执行 `transition_task()`，一次 accept 竞争与一次 complete 竞争，结果均为 `[False, True]`。③ 恢复官方入口：新增独立 `vitest.config.ts`（不加载 uni/Vue 插件、不引用生产配置），`npm test` 与 `npm run type-check` 改为直接调用已存在的 `node_modules` 包入口，不再依赖缺失的 `.bin` shim。④ 顺手修掉一处测试卫生缺陷：Repository 测试里 `with sqlite3.connect(...)` 只提交事务、不关闭连接，Windows 下会让 pytest 无法删除临时目录（`%TEMP%\pytest-of-Asus` 中累积 33 个 `garbage-*` 目录，并在 stderr 打印 `SystemExit: 1`）；改为 `contextlib.closing` 后连续 3 次运行无 stderr、无新增 garbage 目录。⑤ 初次 CLI 构建曾因不完整的 `node_modules` 缺少 `@ampproject/remapping` 而受阻；获得用户安装授权后执行 `npm ci` 重建锁定依赖，随后官方测试、类型检查和 `npm run build:mp-weixin` 均通过。微信开发者工具的当前构建产物预览已在同日收口轮实际尝试，结果为 blocked（本机服务端口关闭），见文末「验证结果」。

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import TabBar from '../../components/TabBar.vue'
 import { ICONS } from '../../assets/icons'
 import { guardianInfo, menuItems } from '../../mock/data'
 </script>
@@ -29,7 +28,6 @@ import { guardianInfo, menuItems } from '../../mock/data'
       </view>
     </view>
 
-    <TabBar current="profile" />
   </view>
 </template>
 
