@@ -7,5 +7,5 @@ export default {
 </script>
 
 <style>
-page { background: #f5f7fb; color: #1f2937; font-family: system-ui, sans-serif; }
+page { background: #f0f4fa; color: #1f2937; font-family: system-ui, sans-serif; }
 </style>
