@@ -9,7 +9,7 @@ from .rescue import (
     RescueStep,
     RescueTransition,
 )
-from .service import ServiceStatus, ServiceTask, ServiceTransition
+from .service import ServiceStatus, ServiceTask, ServiceTaskComplete, ServiceTaskCreate
 
 __all__ = [
     "Course",
@@ -27,5 +27,6 @@ __all__ = [
     "RescueTransition",
     "ServiceStatus",
     "ServiceTask",
-    "ServiceTransition",
+    "ServiceTaskComplete",
+    "ServiceTaskCreate",
 ]

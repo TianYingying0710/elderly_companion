@@ -53,6 +53,8 @@
 | GET | `/service-tasks/{task_id}` | 详情 |
 | POST | `/service-tasks/{task_id}/transitions` | 推进一步，请求体 `{to, note?}` |
 
+> **2026-11-01 已被取代**：服务任务域改为已实现，`transitions` 由 `POST /{task_id}/accept` 与 `POST /{task_id}/complete` 取代，并新增 `POST /service-tasks`（201，`id`/`status`/`note` 由服务端生成）。存储为本地开发用 SQLite 单表 `service_tasks`。以 `2026-11-01-community-service-tasks-loop-design.md` 与 `docs/api.md` 为准；其余 3 个域仍按本文档保持 501。
+
 ### 3.3 知识资料
 
 | 方法 | 路径 | 说明 |

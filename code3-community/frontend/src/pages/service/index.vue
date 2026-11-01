@@ -1,26 +1,62 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+
 import AppToast from '../../components/AppToast.vue'
 import BottomSheet from '../../components/BottomSheet.vue'
 import PageHeader from '../../components/PageHeader.vue'
 import ScreenIdentity from '../../components/ScreenIdentity.vue'
+import { useServiceTasks } from '../../composables/useServiceTasks'
 import { useToast } from '../../composables/useToast'
-import { completeWithRecord, groupServices, nextServiceStatus, serviceActionLabel } from '../../domain/serviceFlow'
-import { createServices } from '../../mock/community'
-import type { ServiceTask } from '../../types/community'
+import {
+  canAccept,
+  canComplete,
+  cardActionLabel,
+  detailActionLabel,
+  groupServices,
+  statusLabel,
+} from '../../domain/serviceFlow'
+import type { ServiceTaskDraft } from '../../types/serviceTask'
 
-const tasks = ref<ServiceTask[]>(createServices())
-const openId = ref('')
-const note = ref('')
+const {
+  tasks,
+  state,
+  errorMessage,
+  actionError,
+  busy,
+  load,
+  retry,
+  createTask,
+  accept,
+  complete,
+  clearActionError,
+} = useServiceTasks()
 const { toastText, tip } = useToast()
 
-const grouped = computed(() => groupServices(tasks.value))
+const emptyDraft = (): ServiceTaskDraft => ({
+  title: '',
+  elderName: '',
+  category: '',
+  scheduledDate: '',
+  scheduledTime: '',
+  location: '',
+  description: '',
+})
 
+const openId = ref('')
+const note = ref('')
+const createVisible = ref(false)
+const draft = ref<ServiceTaskDraft>(emptyDraft())
+const draftError = ref('')
+
+const grouped = computed(() => groupServices(tasks.value))
 const current = computed(() => tasks.value.find((task) => task.id === openId.value) ?? null)
 
-const sheetAction = computed(() => (current.value ? serviceActionLabel(current.value.status) : '关闭'))
+onMounted(() => {
+  void load()
+})
 
 function openDetail(id: string) {
+  clearActionError()
   openId.value = id
   note.value = ''
 }
@@ -29,24 +65,67 @@ function closeDetail() {
   openId.value = ''
 }
 
-function advance() {
+function openCreate() {
+  clearActionError()
+  draft.value = emptyDraft()
+  draftError.value = ''
+  createVisible.value = true
+}
+
+function closeCreate() {
+  if (busy.value) return
+  createVisible.value = false
+}
+
+async function advance() {
   const task = current.value
-  if (!task) return
-  if (task.status === '待接收') {
-    task.status = nextServiceStatus(task.status)
-    tip('已接收该社区服务')
+  if (!task || busy.value) return
+
+  // 已完成是终态：主按钮文案为「关闭」，必须真的关闭详情，不留点击无效的按钮。
+  if (task.status === 'completed') {
     closeDetail()
     return
   }
-  if (task.status === '服务中') {
-    const next = completeWithRecord(task, note.value)
-    if (next === '服务中') {
+
+  if (canAccept(task.status)) {
+    const ok = await accept(task.id)
+    if (ok) {
+      tip('已接收该社区服务')
+      closeDetail()
+    } else {
+      tip(actionError.value || '接收失败，请重试')
+    }
+    return
+  }
+
+  if (canComplete(task.status)) {
+    if (!note.value.trim()) {
       tip('请先填写服务记录')
       return
     }
-    tip('服务记录已保存')
-    closeDetail()
+    const ok = await complete(task.id, note.value)
+    if (ok) {
+      tip('服务记录已保存')
+      closeDetail()
+    } else {
+      tip(actionError.value || '完成失败，请重试')
+    }
   }
+}
+
+async function submitCreate() {
+  if (busy.value) return
+  draftError.value = ''
+  const ok = await createTask(draft.value)
+  if (ok) {
+    tip('服务任务已创建')
+    createVisible.value = false
+    draft.value = emptyDraft()
+    return
+  }
+  // 失败时保留用户已填内容，只提示原因。
+  draftError.value = actionError.value || '创建失败，请重试'
+  tip(draftError.value)
 }
 </script>
 
@@ -56,23 +135,42 @@ function advance() {
 
     <PageHeader title="社区服务协同" subtitle="承接社区点位内的线下协助，上门陪护由陪护端负责" />
 
-    <view v-for="group in grouped" :key="group.status" class="group">
-      <view class="group-title">{{ group.status }}（{{ group.items.length }}）</view>
+    <view v-if="actionError && !current && !createVisible" class="refresh-banner">{{ actionError }}</view>
 
-      <view v-if="group.items.length === 0" class="group-empty">暂无任务</view>
-
-      <view v-for="task in group.items" :key="task.id" class="task-card" @tap="openDetail(task.id)">
-        <view class="round-icon">{{ task.status === '已完成' ? '◇' : '♡' }}</view>
-        <view class="task-main">
-          <view class="task-title">{{ task.title }}</view>
-          <view class="task-meta">{{ task.name }} · {{ task.type }}</view>
-          <view class="task-meta">{{ task.time }}</view>
-        </view>
-        <view v-if="task.status === '待接收'" class="task-action">接收任务</view>
-        <view v-else-if="task.status === '服务中'" class="task-action">完成</view>
-        <view v-else class="done-mark">✓</view>
-      </view>
+    <view v-if="state === 'loading' && tasks.length === 0" class="state-block">
+      <view class="state-text">正在加载服务任务…</view>
     </view>
+
+    <view v-else-if="state === 'error'" class="state-block">
+      <view class="state-text">{{ errorMessage }}</view>
+      <view class="state-action" @tap="retry">重新加载</view>
+    </view>
+
+    <view v-else-if="tasks.length === 0" class="state-block">
+      <view class="state-text">暂无服务任务</view>
+      <view class="state-action" @tap="openCreate">新建服务任务</view>
+    </view>
+
+    <template v-else>
+      <view class="create-entry" @tap="openCreate">＋ 新建服务任务</view>
+
+      <view v-for="group in grouped" :key="group.status" class="group">
+        <view class="group-title">{{ group.label }}（{{ group.items.length }}）</view>
+
+        <view v-if="group.items.length === 0" class="group-empty">暂无任务</view>
+
+        <view v-for="task in group.items" :key="task.id" class="task-card" @tap="openDetail(task.id)">
+          <view class="round-icon">{{ task.status === 'completed' ? '◇' : '♡' }}</view>
+          <view class="task-main">
+            <view class="task-title">{{ task.title }}</view>
+            <view class="task-meta">{{ task.elderName }} · {{ task.category }}</view>
+            <view class="task-meta">{{ task.scheduledText }}</view>
+          </view>
+          <view v-if="cardActionLabel(task.status)" class="task-action">{{ cardActionLabel(task.status) }}</view>
+          <view v-else class="done-mark">✓</view>
+        </view>
+      </view>
+    </template>
   </view>
 
   <BottomSheet :visible="Boolean(current)" @close="closeDetail">
@@ -85,15 +183,15 @@ function advance() {
         </view>
         <view class="detail-row">
           <view class="detail-label">服务对象</view>
-          <view class="detail-value">{{ current.name }}</view>
+          <view class="detail-value">{{ current.elderName }}</view>
         </view>
         <view class="detail-row">
           <view class="detail-label">服务类型</view>
-          <view class="detail-value">{{ current.type }}</view>
+          <view class="detail-value">{{ current.category }}</view>
         </view>
         <view class="detail-row">
           <view class="detail-label">预约时间</view>
-          <view class="detail-value">{{ current.time }}</view>
+          <view class="detail-value">{{ current.scheduledText }}</view>
         </view>
         <view class="detail-row">
           <view class="detail-label">服务地点</view>
@@ -105,7 +203,7 @@ function advance() {
         </view>
         <view class="detail-row">
           <view class="detail-label">当前状态</view>
-          <view class="detail-value">{{ current.status }}</view>
+          <view class="detail-value">{{ statusLabel(current.status) }}</view>
         </view>
         <view v-if="current.record" class="detail-row">
           <view class="detail-label">服务记录</view>
@@ -113,10 +211,59 @@ function advance() {
         </view>
       </view>
 
-      <textarea v-model="note" class="service-note" placeholder="填写服务记录" placeholder-class="note-placeholder" />
+      <textarea
+        v-if="canComplete(current.status)"
+        v-model="note"
+        class="service-note"
+        placeholder="填写服务记录"
+        placeholder-class="note-placeholder"
+      />
 
-      <view class="accept" @tap="advance">{{ sheetAction }}</view>
+      <view class="accept" :class="{ disabled: busy }" @tap="advance">
+        {{ busy ? '处理中…' : detailActionLabel(current.status) }}
+      </view>
+      <view v-if="actionError" class="action-error">{{ actionError }}</view>
     </template>
+  </BottomSheet>
+
+  <BottomSheet :visible="createVisible" height="88vh" @close="closeCreate">
+    <view class="sheet-title">新建服务任务</view>
+    <view class="form-hint">仅用于本地开发演示，请勿填写真实姓名、住址或联系方式。</view>
+
+    <view class="form-field">
+      <view class="form-label">服务项目</view>
+      <input v-model="draft.title" class="form-input" placeholder="例如：代缴水电费" placeholder-class="note-placeholder" />
+    </view>
+    <view class="form-field">
+      <view class="form-label">服务对象</view>
+      <input v-model="draft.elderName" class="form-input" placeholder="例如：示例老人 A" placeholder-class="note-placeholder" />
+    </view>
+    <view class="form-field">
+      <view class="form-label">服务类型</view>
+      <input v-model="draft.category" class="form-input" placeholder="例如：代办服务" placeholder-class="note-placeholder" />
+    </view>
+    <view class="form-field">
+      <view class="form-label">服务日期</view>
+      <input v-model="draft.scheduledDate" class="form-input" placeholder="2026-11-01" placeholder-class="note-placeholder" />
+    </view>
+    <view class="form-field">
+      <view class="form-label">服务时间</view>
+      <input v-model="draft.scheduledTime" class="form-input" placeholder="14:30" placeholder-class="note-placeholder" />
+    </view>
+    <view class="form-field">
+      <view class="form-label">服务地点</view>
+      <input v-model="draft.location" class="form-input" placeholder="例如：XX 社区服务中心" placeholder-class="note-placeholder" />
+    </view>
+    <view class="form-field">
+      <view class="form-label">服务说明</view>
+      <textarea v-model="draft.description" class="form-textarea" placeholder="例如：按老人委托到窗口代缴本月水电费" placeholder-class="note-placeholder" />
+    </view>
+
+    <view v-if="draftError" class="action-error">{{ draftError }}</view>
+
+    <view class="accept" :class="{ disabled: busy }" @tap="submitCreate">
+      {{ busy ? '提交中…' : '创建任务' }}
+    </view>
   </BottomSheet>
 
   <AppToast :text="toastText" />
@@ -129,6 +276,41 @@ function advance() {
   background: #f5f7fb;
   color: #1f2024;
   box-sizing: border-box;
+}
+
+.state-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120rpx 0;
+  color: #4f5663;
+  font-size: 26rpx;
+}
+
+.state-text {
+  line-height: 1.6;
+  text-align: center;
+}
+
+.state-action {
+  margin-top: 30rpx;
+  padding: 18rpx 44rpx;
+  border: 1rpx solid #4968a9;
+  border-radius: 999rpx;
+  color: #4968a9;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.create-entry {
+  margin-bottom: 32rpx;
+  padding: 24rpx 0;
+  border: 1rpx dashed #b7c2d8;
+  border-radius: 24rpx;
+  color: #4968a9;
+  font-size: 26rpx;
+  font-weight: 700;
+  text-align: center;
 }
 
 .group {
@@ -261,16 +443,80 @@ function advance() {
   color: #9aa3b3;
 }
 
+.form-hint {
+  margin-top: 18rpx;
+  color: #7c879d;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.form-field {
+  margin-top: 28rpx;
+}
+
+.form-label {
+  margin-bottom: 12rpx;
+  color: #4f5663;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.form-input {
+  width: 100%;
+  height: 84rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid #dfe4ee;
+  border-radius: 23rpx;
+  background: #fff;
+  color: #1f2024;
+  font-size: 24rpx;
+  box-sizing: border-box;
+}
+
+.form-textarea {
+  width: 100%;
+  height: 136rpx;
+  padding: 21rpx 24rpx;
+  border: 1rpx solid #dfe4ee;
+  border-radius: 23rpx;
+  background: #fff;
+  color: #1f2024;
+  font-size: 24rpx;
+  box-sizing: border-box;
+}
+
+.action-error {
+  margin-bottom: 20rpx;
+  color: #c0392b;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.refresh-banner {
+  margin-bottom: 28rpx;
+  padding: 21rpx 26rpx;
+  border-radius: 20rpx;
+  background: #fdecea;
+  color: #c0392b;
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
 .accept {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 87rpx;
+  margin-top: 20rpx;
   margin-bottom: 20rpx;
   border-radius: 999rpx;
   color: #fff;
   background: #4968a9;
   font-size: 28rpx;
   font-weight: 800;
+}
+
+.accept.disabled {
+  background: #9aa8c6;
 }
 </style>

@@ -1,6 +1,12 @@
 # 开发进度
 
-更新日期：2026-10-25
+更新日期：2026-11-01
+
+2026-11-01：社区端「社区服务任务」完成交付收口（已实现）。① 前端本地校验不再退化为「操作失败，请重试」：`composable` 捕获 `ServiceTaskMappingError` 时保留 mapper 给出的具体原因（空字段、超长、非法日期），HTTP 错误仍走统一归一化。② 补两个真实竞争测试：同一 `tmp_path/community.db` 上两个独立 Repository/SQLite 连接用 `threading.Barrier` 同时执行 `transition_task()`，一次 accept 竞争与一次 complete 竞争，结果均为 `[False, True]`。③ 恢复官方入口：新增独立 `vitest.config.ts`（不加载 uni/Vue 插件、不引用生产配置），`npm test` 与 `npm run type-check` 改为直接调用已存在的 `node_modules` 包入口，不再依赖缺失的 `.bin` shim。④ 顺手修掉一处测试卫生缺陷：Repository 测试里 `with sqlite3.connect(...)` 只提交事务、不关闭连接，Windows 下会让 pytest 无法删除临时目录（`%TEMP%\pytest-of-Asus` 中累积 33 个 `garbage-*` 目录，并在 stderr 打印 `SystemExit: 1`）；改为 `contextlib.closing` 后连续 3 次运行无 stderr、无新增 garbage 目录。⑤ 初次 CLI 构建曾因不完整的 `node_modules` 缺少 `@ampproject/remapping` 而受阻；获得用户安装授权后执行 `npm ci` 重建锁定依赖，随后官方测试、类型检查和 `npm run build:mp-weixin` 均通过。微信开发者工具的当前构建产物预览仍需单独复验。
+
+2026-11-01：社区端「社区服务任务」完成链路加固（已实现）。修复 5 处已确认缺陷：已完成详情的主按钮现在真的关闭详情；`COMMUNITY_DATABASE_PATH` 指向尚不存在的父目录时首次访问会为该文件创建父目录而非 503；`accept`/`complete` 改为 `BEGIN IMMEDIATE` 内条件更新，并发重复操作只有一个成功、另一个得到 409；文本字段增加明确上限（`title`/`elder_name`/`category` 100、`location` 200、`description`/`note` 2000）且创建/完成请求禁止未定义字段；已有列表时刷新失败改为保留旧列表 + 列表外非阻塞提示，只有首次加载失败才显示整页错误。前端 mapper 使用同一组上限提前报错。认证、授权、通知、求助、AI 与设备能力仍未实现。
+
+2026-11-01：社区端「社区服务任务」完成第一条真实前后端闭环（已实现）。后端新增 `service_errors.py`、`services/service_tasks.py`、`repositories/sqlite_service_tasks.py`、`dependencies/database.py`，把 `POST /{id}/transitions` 替换为 `POST /{id}/accept` 与 `POST /{id}/complete`，并新增 `POST /api/v1/service-tasks` 创建；存储为本地开发用 SQLite 单表 `service_tasks`（`COMMUNITY_DATABASE_PATH`，仅 `CREATE TABLE IF NOT EXISTS`，无 seed）。前端服务页面移除 mock 依赖，改为 `composables/useServiceTasks` + `api/serviceTasks` + `mappers/serviceTaskMapper` + `domain/serviceFlow`，具备加载/空/错误/重试与新建表单。`AGENTS.md` 增加仅限本域的数据库例外。救援、知识、课程仍为 501 契约骨架；认证、通知、求助、AI 与设备能力未涉及（未实现）。
 
 2026-10-26：老人端完成第一轮解耦整理，账户与服务页面已拆分，领域类型与组合函数已独立，旧桌面预览 CSS 已清除；未新增业务能力或后端接口。
 
@@ -23,6 +29,8 @@
 - 「当前阶段明确不做」中关于社区端业务页面的限制，自本小节起解除；数据库、真实数据、认证仍不涉及。
 
 ## 已完成
+
+> 本节为历史里程碑记录。其中「微信开发者工具模拟器预览」为 **2026-10-31** 的状态；2026-11-01 社区端初次构建曾因依赖目录不完整受阻，后在用户授权下用 `npm ci` 恢复锁定依赖并重新构建成功。当前状态以文末「验证结果」为准。
 
 - 老人端 Vue 3 + TypeScript + Vite + Capacitor Android 骨架和最小识别页面。
 - 监护人端、社区端两个独立的 uni-app + Vue 3 + TypeScript 微信小程序骨架。
@@ -47,8 +55,13 @@
 
 ## 验证结果
 
+- 社区服务任务交付收口（2026-11-01 本轮实测，均为可复现的官方命令）：
+  - 后端分组：`tests/test_service_tasks_service.py` + `tests/test_sqlite_service_task_repository.py` → 23 passed；`tests/test_service_tasks_api.py` + `tests/test_error_contract.py` → 29 passed（1 个第三方 `httpx2` 弃用警告）；社区后端全量 `pytest -q` → 80 passed，exit 0。
+  - 前端官方：`npm test` → 9 个 spec / 80 项通过，exit 0（覆盖 `src/**/*.spec.ts`，含 4 项新增本地校验用例）；`npm run type-check` → exit 0，无 TypeScript 错误。
+  - 微信小程序：获得用户安装授权后执行 `npm ci`，随后 `npm run build:mp-weixin` → type-check 与 uni CLI 均通过，exit 0，并生成新的 `dist/build/mp-weixin`；微信开发者工具对该当前产物的预览仍未作为本轮交付证据。
+- 历史旁路记录（非官方命令）：加固轮的 76 项前端测试通过仓库外临时 vitest 配置直接运行 `node_modules/vitest/vitest.mjs` 得出，当时官方 `npm test` 因缺少 `node_modules/.bin/vitest.cmd` 无法启动；该结果已被本轮官方命令取代，仅作历史。
 - 前端测试：老人端 20 项（7 个测试文件）、监护人端 3 项、社区端 25 项（5 个测试文件），全部通过（2026-10-31 实测）。
-- 前端生产构建：老人端 Web、监护人端微信小程序、社区端微信小程序均通过。
+- 前端生产构建：老人端 Web、监护人端微信小程序、社区端微信小程序均通过；社区端在 2026-11-01 重建依赖后已用官方命令复验成功。
 - 后端测试：老人端 13 项、监护人端 1 项、社区端 12 项，共 26 项通过；存在依赖库的 `httpx2` 未来弃用警告，不影响当前通过结果。
 - 共享契约测试：3 项通过。
 - 测试总数：77 项全部通过（2026-10-31 实测，前端 48 + 后端 26 + 共享 3）。
@@ -60,11 +73,13 @@
 
 ## 当前阶段明确不做
 
-- 数据库选型、建表、迁移、初始化、seed 和数据导入。
-- 任何真实或模拟业务数据。
+- 数据库选型、建表、迁移、初始化、seed 和数据导入：**默认禁令仍然有效**。
+  - 唯一明确授权的例外是社区端「社区服务任务」（2026-11-01 用户授权）：只允许 Python 标准库 `sqlite3`、只允许单表 `service_tasks`、只允许用户在小程序页面主动录入且不含真实个人信息的本地开发任务；禁止 seed、预置数据与迁移框架。
+  - 救援、知识、课程三个社区领域，以及老人端、监护人端，仍受原禁令约束，该例外不外溢。
+- 任何真实或模拟业务数据；社区服务任务页面允许用户主动录入的本地开发数据，同样不得包含真实个人信息。
 - 登录、授权、通知、求助流程和完整 UI。
 - RAG、向量库、老人记忆、数字画像、模型调用和设备接入实现。
-- 监护人端和社区端业务页面、正式 AppID 配置及发布流程。
+- 监护人端和社区端其余业务页面、正式 AppID 配置及发布流程（社区服务任务页面除外）。
 
 ## 下一里程碑建议
 

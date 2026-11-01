@@ -1,46 +1,55 @@
-import type { ServiceStatus, ServiceTask } from '../types/community'
+/** 社区服务状态的展示规则。纯函数：不依赖 Vue、uni、HTTP 或存储。 */
 
-/** 社区服务三分组，顺序即页面展示顺序。 */
-export const SERVICE_GROUPS: ServiceStatus[] = ['待接收', '服务中', '已完成']
+import type { ServiceTask, ServiceTaskStatus } from '../types/serviceTask'
 
-/** 状态推进：待接收 → 服务中 → 已完成，已完成不再变化。 */
-export function nextServiceStatus(status: ServiceStatus): ServiceStatus {
-  if (status === '待接收') return '服务中'
-  if (status === '服务中') return '已完成'
-  return '已完成'
-}
+/** 三个分组，顺序即页面展示顺序。 */
+export const SERVICE_STATUS_ORDER: ServiceTaskStatus[] = ['pending', 'in_service', 'completed']
 
-/** 详情弹层主按钮文案。 */
-export function serviceActionLabel(status: ServiceStatus): string {
-  if (status === '待接收') return '接收任务'
-  if (status === '服务中') return '完成并保存记录'
-  return '关闭'
-}
-
-/** 完成服务：非空记录才落库，空记录保持「服务中」不变。返回推进后的状态。 */
-export function completeWithRecord(task: ServiceTask, record: string): ServiceStatus {
-  const trimmed = record.trim()
-  if (!trimmed) return task.status
-  task.record = trimmed
-  return nextServiceStatus(task.status)
-}
-
-/** 卡片右侧提示文案；已完成返回空串，由 ✓ 标记代替。 */
-export function serviceCardLabel(status: ServiceStatus): string {
-  if (status === '待接收') return '接收任务'
-  if (status === '服务中') return '完成'
-  return ''
+const LABELS: Record<ServiceTaskStatus, string> = {
+  pending: '待接收',
+  in_service: '服务中',
+  completed: '已完成',
 }
 
 export interface ServiceGroup {
-  status: ServiceStatus
+  status: ServiceTaskStatus
+  label: string
   items: ServiceTask[]
 }
 
-/** 按状态分组。计数为 0 的分组保留，由页面渲染「暂无任务」。 */
+export function statusLabel(status: ServiceTaskStatus): string {
+  return LABELS[status] ?? '未知状态'
+}
+
+/** 只有 pending 可接收；权威规则在后端，这里只控制按钮可用性。 */
+export function canAccept(status: ServiceTaskStatus): boolean {
+  return status === 'pending'
+}
+
+/** 只有 in_service 可完成，且必须填写服务记录。 */
+export function canComplete(status: ServiceTaskStatus): boolean {
+  return status === 'in_service'
+}
+
+/** 列表卡片右侧提示；已完成返回空串，由 ✓ 标记代替。 */
+export function cardActionLabel(status: ServiceTaskStatus): string {
+  if (canAccept(status)) return '接收任务'
+  if (canComplete(status)) return '完成'
+  return ''
+}
+
+/** 详情弹层主按钮文案。 */
+export function detailActionLabel(status: ServiceTaskStatus): string {
+  if (canAccept(status)) return '接收任务'
+  if (canComplete(status)) return '完成并保存记录'
+  return '关闭'
+}
+
+/** 按状态分组；计数为 0 的分组保留，由页面渲染「暂无任务」。 */
 export function groupServices(tasks: ServiceTask[]): ServiceGroup[] {
-  return SERVICE_GROUPS.map((status) => ({
+  return SERVICE_STATUS_ORDER.map((status) => ({
     status,
+    label: statusLabel(status),
     items: tasks.filter((task) => task.status === status),
   }))
 }

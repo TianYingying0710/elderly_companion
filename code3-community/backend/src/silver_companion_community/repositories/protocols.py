@@ -19,7 +19,7 @@ class RescueIncidentRepository(Protocol):
 
 
 class ServiceTaskRepository(Protocol):
-    """社区服务任务持久化边界。当前无任何实现。"""
+    """社区服务任务持久化边界。当前实现为本地开发用 SQLite。"""
 
     async def list_tasks(
         self, status: ServiceStatus | None = None, limit: int = 20
@@ -28,6 +28,13 @@ class ServiceTaskRepository(Protocol):
     async def get_task(self, task_id: str) -> ServiceTask | None: ...
 
     async def save_task(self, task: ServiceTask) -> None: ...
+
+    async def transition_task(self, task: ServiceTask, expected_status: ServiceStatus) -> bool:
+        """仅当库中状态仍为 `expected_status` 时写入 `task`；成功返回 True。
+
+        实现必须把「判断 + 写入」放在同一个原子操作里，避免并发丢失更新。
+        """
+        ...
 
 
 class KnowledgeDocRepository(Protocol):

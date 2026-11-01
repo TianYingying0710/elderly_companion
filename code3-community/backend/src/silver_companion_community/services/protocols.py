@@ -15,7 +15,7 @@ from silver_companion_community.schemas.rescue import (
 from silver_companion_community.schemas.service import (
     ServiceStatus,
     ServiceTask,
-    ServiceTransition,
+    ServiceTaskCreate,
 )
 
 
@@ -34,15 +34,19 @@ class RescueIncidentService(Protocol):
 
 
 class ServiceTaskService(Protocol):
-    """社区服务协同能力。完成服务时写入服务记录。"""
+    """社区服务协同能力。状态机与「完成必须带服务记录」由实现层保证。"""
 
     async def list_tasks(
         self, status: ServiceStatus | None = None, limit: int = 20
     ) -> Sequence[ServiceTask]: ...
 
-    async def get_task(self, task_id: str) -> ServiceTask | None: ...
+    async def get_task(self, task_id: str) -> ServiceTask: ...
 
-    async def transition(self, task_id: str, transition: ServiceTransition) -> ServiceTask: ...
+    async def create_task(self, payload: ServiceTaskCreate) -> ServiceTask: ...
+
+    async def accept(self, task_id: str) -> ServiceTask: ...
+
+    async def complete(self, task_id: str, note: str) -> ServiceTask: ...
 
 
 class KnowledgeDocService(Protocol):

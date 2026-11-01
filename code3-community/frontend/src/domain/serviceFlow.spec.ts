@@ -1,64 +1,78 @@
 import { describe, expect, it } from 'vitest'
-import { SERVICE_GROUPS, completeWithRecord, groupServices, nextServiceStatus, serviceActionLabel, serviceCardLabel } from './serviceFlow'
-import type { ServiceTask } from '../types/community'
 
-const task = (id: string, status: ServiceTask['status']): ServiceTask => ({
+import type { ServiceTask, ServiceTaskStatus } from '../types/serviceTask'
+import {
+  SERVICE_STATUS_ORDER,
+  canAccept,
+  canComplete,
+  cardActionLabel,
+  detailActionLabel,
+  groupServices,
+  statusLabel,
+} from './serviceFlow'
+
+const task = (id: string, status: ServiceTaskStatus): ServiceTask => ({
   id,
   title: `${id} 标题`,
-  name: '某老人',
-  type: '代办服务',
-  time: '今天 10:00',
-  location: '社区服务中心',
+  elderName: '示例老人 A',
+  category: '代办服务',
+  scheduledAt: '2026-11-01T14:00:00+08:00',
+  scheduledText: '11-01 14:00',
+  location: 'XX 社区服务中心',
   description: '说明',
   status,
+  record: null,
 })
 
 describe('serviceFlow', () => {
-  it('三个分组且顺序固定', () => {
-    expect(SERVICE_GROUPS).toEqual(['待接收', '服务中', '已完成'])
+  it('三个分组且顺序固定为 pending → in_service → completed', () => {
+    expect(SERVICE_STATUS_ORDER).toEqual(['pending', 'in_service', 'completed'])
   })
 
-  it('状态按 待接收 → 服务中 → 已完成 推进', () => {
-    expect(nextServiceStatus('待接收')).toBe('服务中')
-    expect(nextServiceStatus('服务中')).toBe('已完成')
+  it('中文文案只在展示函数中出现', () => {
+    expect(statusLabel('pending')).toBe('待接收')
+    expect(statusLabel('in_service')).toBe('服务中')
+    expect(statusLabel('completed')).toBe('已完成')
+    expect(statusLabel('bogus' as ServiceTaskStatus)).toBe('未知状态')
   })
 
-  it('已完成不再推进', () => {
-    expect(nextServiceStatus('已完成')).toBe('已完成')
+  it('只有 pending 可接收、只有 in_service 可完成', () => {
+    expect([canAccept('pending'), canAccept('in_service'), canAccept('completed')]).toEqual([
+      true,
+      false,
+      false,
+    ])
+    expect([canComplete('pending'), canComplete('in_service'), canComplete('completed')]).toEqual([
+      false,
+      true,
+      false,
+    ])
   })
 
-  it('弹层按钮与卡片提示文案与原型一致', () => {
-    expect(serviceActionLabel('待接收')).toBe('接收任务')
-    expect(serviceActionLabel('服务中')).toBe('完成并保存记录')
-    expect(serviceActionLabel('已完成')).toBe('关闭')
-    expect(serviceCardLabel('待接收')).toBe('接收任务')
-    expect(serviceCardLabel('服务中')).toBe('完成')
-    expect(serviceCardLabel('已完成')).toBe('')
+  it('卡片与弹层按钮文案与状态一致', () => {
+    expect(cardActionLabel('pending')).toBe('接收任务')
+    expect(cardActionLabel('in_service')).toBe('完成')
+    expect(cardActionLabel('completed')).toBe('')
+    expect(detailActionLabel('pending')).toBe('接收任务')
+    expect(detailActionLabel('in_service')).toBe('完成并保存记录')
+    expect(detailActionLabel('completed')).toBe('关闭')
   })
 
   it('分组保留空组，便于渲染「暂无任务」', () => {
-    const groups = groupServices([task('a', '待接收'), task('b', '已完成')])
+    const groups = groupServices([task('a', 'pending'), task('c', 'completed')])
+
     expect(groups).toHaveLength(3)
+    expect(groups.map((group) => group.label)).toEqual(['待接收', '服务中', '已完成'])
     expect(groups[0].items.map((item) => item.id)).toEqual(['a'])
     expect(groups[1].items).toHaveLength(0)
-    expect(groups[2].items.map((item) => item.id)).toEqual(['b'])
+    expect(groups[2].items.map((item) => item.id)).toEqual(['c'])
   })
 
-  it('状态变化后卡片落到对应分组', () => {
-    const tasks = [task('a', '待接收')]
-    tasks[0].status = nextServiceStatus(tasks[0].status)
-    const groups = groupServices(tasks)
+  it('服务端状态改变后任务落到对应分组', () => {
+    const groups = groupServices([task('a', 'in_service')])
+
     expect(groups[0].items).toHaveLength(0)
     expect(groups[1].items.map((item) => item.id)).toEqual(['a'])
-  })
-
-  it('完成服务时保存服务记录，空记录被拒', () => {
-    const t = task('a', '服务中')
-    expect(completeWithRecord(t, '已协助填写申请表并提交')).toBe('已完成')
-    expect(t.record).toBe('已协助填写申请表并提交')
-
-    const blank = task('b', '服务中')
-    expect(completeWithRecord(blank, '   ')).toBe('服务中')
-    expect(blank.record).toBeUndefined()
+    expect(groups[2].items).toHaveLength(0)
   })
 })

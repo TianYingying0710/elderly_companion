@@ -13,7 +13,10 @@ from silver_companion_community.schemas.rescue import (
     RescueStatus,
     RescueTransition,
 )
-from silver_companion_community.schemas.service import ServiceStatus, ServiceTransition
+from silver_companion_community.schemas.service import (
+    ServiceTaskComplete,
+    ServiceTaskCreate,
+)
 
 AWARE = datetime(2026, 10, 29, 1, 7, tzinfo=timezone.utc)
 
@@ -62,13 +65,87 @@ def test_reported_at_must_be_timezone_aware() -> None:
         RescueIncidentSummary(**_incident(reported_at=datetime(2026, 10, 29, 1, 7)))
 
 
+def _service_create(**overrides: object) -> dict[str, object]:
+    base: dict[str, object] = {
+        "title": "代缴水电费",
+        "elder_name": "示例老人 B",
+        "category": "代办服务",
+        "scheduled_at": AWARE,
+        "location": "XX 社区服务中心窗口",
+        "description": "按老人委托到窗口代缴本月水电费",
+    }
+    base.update(overrides)
+    return base
+
+
 def test_service_completion_requires_a_note() -> None:
     with pytest.raises(ValidationError):
-        ServiceTransition(to=ServiceStatus.completed)
+        ServiceTaskComplete(note="")
     with pytest.raises(ValidationError):
-        ServiceTransition(to=ServiceStatus.completed, note="  ")
+        ServiceTaskComplete(note="   ")
 
-    assert ServiceTransition(to=ServiceStatus.completed, note="已协助填写申请表").note
+    assert ServiceTaskComplete(note=" 已协助填写申请表 ").note == "已协助填写申请表"
+
+
+def test_service_create_forbids_server_owned_fields() -> None:
+    for field in ("id", "status", "note"):
+        with pytest.raises(ValidationError):
+            ServiceTaskCreate(**_service_create(**{field: "client-value"}))
+
+
+def test_service_create_requires_every_business_field() -> None:
+    for field in ("title", "elder_name", "category", "scheduled_at", "location", "description"):
+        payload = _service_create()
+        payload.pop(field)
+        with pytest.raises(ValidationError):
+            ServiceTaskCreate(**payload)
+
+    with pytest.raises(ValidationError):
+        ServiceTaskCreate(**_service_create(scheduled_at=datetime(2026, 11, 1, 14, 0)))
+
+    created = ServiceTaskCreate(**_service_create())
+    assert created.title == "代缴水电费"
+
+
+TEXT_LIMITS = [
+    ("title", 100),
+    ("elder_name", 100),
+    ("category", 100),
+    ("location", 200),
+    ("description", 2000),
+]
+
+
+@pytest.mark.parametrize(("field", "limit"), TEXT_LIMITS)
+def test_service_create_accepts_text_exactly_at_the_limit(field: str, limit: int) -> None:
+    created = ServiceTaskCreate(**_service_create(**{field: "长" * limit}))
+
+    assert len(getattr(created, field)) == limit
+
+
+@pytest.mark.parametrize(("field", "limit"), TEXT_LIMITS)
+def test_service_create_rejects_text_one_character_over_the_limit(field: str, limit: int) -> None:
+    with pytest.raises(ValidationError):
+        ServiceTaskCreate(**_service_create(**{field: "长" * (limit + 1)}))
+
+
+def test_service_create_measures_the_limit_after_stripping_whitespace() -> None:
+    created = ServiceTaskCreate(**_service_create(title="长" * 100 + "   "))
+
+    assert created.title == "长" * 100
+
+
+def test_service_completion_note_has_an_upper_bound() -> None:
+    assert len(ServiceTaskComplete(note="记" * 2000).note) == 2000
+
+    with pytest.raises(ValidationError):
+        ServiceTaskComplete(note="记" * 2001)
+
+
+def test_service_completion_forbids_unknown_fields() -> None:
+    for extra in ({"status": "completed"}, {"id": "client-id"}):
+        with pytest.raises(ValidationError):
+            ServiceTaskComplete(note="已上门确认老人无碍", **extra)
 
 
 def test_knowledge_update_requires_at_least_one_field() -> None:
