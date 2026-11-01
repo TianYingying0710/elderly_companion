@@ -26,9 +26,25 @@ if ($IncludeAndroid) {
 }
 
 foreach ($backend in @('code1-elder', 'code2-guardian', 'code3-community')) {
-    & $Python -m pytest "$root\$backend\backend\tests" -q
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $backendRoot = "$root\$backend\backend"
+    Push-Location $backendRoot
+    try {
+        & $Python -m pytest 'tests' -q
+        $testExitCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    if ($testExitCode -ne 0) { exit $testExitCode }
 }
 
-& $Python -m pytest "$root\code4-shared\tests" -q
-exit $LASTEXITCODE
+$sharedRoot = "$root\code4-shared"
+Push-Location $sharedRoot
+try {
+    & $Python -m pytest 'tests' -q
+    $testExitCode = $LASTEXITCODE
+}
+finally {
+    Pop-Location
+}
+exit $testExitCode
