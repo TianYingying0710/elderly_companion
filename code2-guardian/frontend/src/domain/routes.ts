@@ -3,6 +3,7 @@ export const GUARDIAN_SECONDARY_ROUTES = {
   elderDetail: '/pages/elder-detail/index',
   healthTrend: '/pages/health-trend/index',
   reminders: '/pages/reminders/index',
+  adviceDetail: '/pages/advice-detail/index',
 } as const
 
 export type GuardianSecondaryRoute =

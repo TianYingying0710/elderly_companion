@@ -1,6 +1,8 @@
 # 开发进度
 
-更新日期：2026-11-02
+更新日期：2026-11-03
+
+2026-11-03：监护人端新增 AI 建议详情页 `pages/advice-detail/index`（第四个二级页）。四张 AI 建议卡片共用同一详情页，通过 `id` 查询参数读取现有 `adviceList` 对应条目；仅展示标题、描述、图标与「演示数据」标识，无效 id 显示「未找到该建议」空状态，不伪造内容、无医疗/药物/风险/来源/时间等字段。AI 建议页四张卡片接入 `navigateTo`（复用 `secondaryNavigation` 并发锁与失败提示），`domain/routes.ts` 新增 `adviceDetail` 常量。本轮前已修复 custom-tab-bar 高亮不同步（四 tab 页 onShow 调 `getTabBar().syncSelected()`，新增 `domain/tabBarSync.ts` 及测试）。`npm test` 12 文件 / 64 项通过，`type-check` 与 `build:mp-weixin` 通过。未改后端、未改三个既有二级页、未新增依赖。分支 `feat-guardian-secondary-pages`，未推送未合并。
 
 2026-11-02：监护人端新增三个二级页面（老人档案详情 / 健康趋势详情 / 今日提醒列表），均为普通页面、不进入 tabBar。首页原有三处「功能建设中」占位入口改为 `navigateTo`，路由集中在 `domain/routes.ts`；新增 `domain/secondaryNavigation.ts` 提供并发锁与失败提示（快速重复点击不叠加打开、失败弹「页面打开失败，请重试」），新增 `domain/trendSummary.ts` 由现有 7 点序列派生最高/最低/平均（空序列返回 null，不除零）。数据只取现有虚构演示数据：档案页仅展示 `elderProfile` 的姓名/年龄/关系/绑定状态四个字段，趋势页复用 `heartRateTrend` 与 `buildTrendPoints`，提醒页只读展示现有 2 条且无任何可操作控件；三页均带「演示数据」标识。未改后端、未改 AI 建议/消息/我的、未新增依赖、已提交。新增 5 个测试文件并改写 `App.spec.ts` 与 `healthTrend.spec.ts` 中的断言：`npm test` 10 文件 / 52 项通过，`npm run type-check` 与 `npm run build:mp-weixin` 通过；产物 `app.json` 含 7 个页面且 `tabBar.list` 仍为 4 项。微信开发者工具服务端口（19567/3799/9420）均未监听，真机与模拟器表现未验证。分支 `feat-guardian-secondary-pages`（因本机无法创建带斜杠的分支名，改用扁平命名），未合并未推送。
 

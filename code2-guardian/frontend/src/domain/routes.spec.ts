@@ -19,10 +19,11 @@ const SECONDARY_PATHS = [
   'pages/elder-detail/index',
   'pages/health-trend/index',
   'pages/reminders/index',
+  'pages/advice-detail/index',
 ]
 
 describe('guardian secondary routes', () => {
-  it('registers exactly the three approved secondary pages', () => {
+  it('registers exactly the four approved secondary pages', () => {
     expect(pages.pages.map((page) => page.path)).toEqual([
       'pages/index/index',
       'pages/advice/index',
@@ -62,7 +63,7 @@ describe('guardian secondary routes', () => {
       .filter((page) => SECONDARY_PATHS.includes(page.path))
       .map((page) => page.style?.navigationBarTitleText)
 
-    expect(titles).toEqual(['老人档案详情', '健康趋势详情', '今日提醒列表'])
+    expect(titles).toEqual(['老人档案详情', '健康趋势详情', '今日提醒列表', 'AI 建议详情'])
     expect(titles.every((title) => typeof title === 'string' && title.length > 0)).toBe(true)
   })
 })

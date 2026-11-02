@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
+import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
+import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
 import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { adviceBanner, adviceList } from '../../mock/data'
 import type { AdviceIcon } from '../../types'
@@ -17,6 +19,17 @@ const adviceIconBgs: Record<AdviceIcon, string> = {
   chat: '#e8f1fd',
   sleep: '#eceefd',
   diet: '#fdf3e7',
+}
+
+// 二级页面统一走 navigateTo，由 navigator 内部拦截重复点击、失败时提示。
+const navigator = createSecondaryNavigator({
+  navigateTo: (options) =>
+    uni.navigateTo({ url: options.url, fail: options.fail, complete: options.complete }),
+  showToast: (options) => uni.showToast({ title: options.title, icon: options.icon }),
+})
+
+function openAdviceDetail(id: number) {
+  navigator.open(`${GUARDIAN_SECONDARY_ROUTES.adviceDetail}?id=${id}`)
 }
 
 // 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
@@ -44,7 +57,7 @@ onShow(() => {
 
     <!-- 建议列表 -->
     <view class="list">
-      <view v-for="a in adviceList" :key="a.id" class="advice-card">
+      <view v-for="a in adviceList" :key="a.id" class="advice-card" @tap="openAdviceDetail(a.id)">
         <view class="advice-icon" :style="{ background: adviceIconBgs[a.icon] }">
           <image :src="adviceIcons[a.icon]" mode="aspectFit" />
         </view>

@@ -6,7 +6,8 @@
     { "path": "pages/profile/index", "style": { "navigationBarTitleText": "我的" } },
     { "path": "pages/elder-detail/index", "style": { "navigationBarTitleText": "老人档案详情" } },
     { "path": "pages/health-trend/index", "style": { "navigationBarTitleText": "健康趋势详情" } },
-    { "path": "pages/reminders/index", "style": { "navigationBarTitleText": "今日提醒列表" } }
+    { "path": "pages/reminders/index", "style": { "navigationBarTitleText": "今日提醒列表" } },
+    { "path": "pages/advice-detail/index", "style": { "navigationBarTitleText": "AI 建议详情" } }
   ],
   "tabBar": {
     "custom": true,
