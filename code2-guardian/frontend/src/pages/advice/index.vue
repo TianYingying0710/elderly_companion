@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import TabBar from '../../components/TabBar.vue'
 import { ICONS } from '../../assets/icons'
 import { adviceBanner, adviceList } from '../../mock/data'
 import type { AdviceIcon } from '../../types'
@@ -49,7 +48,6 @@ const adviceIconBgs: Record<AdviceIcon, string> = {
       </view>
     </view>
 
-    <TabBar current="advice" />
   </view>
 </template>
 

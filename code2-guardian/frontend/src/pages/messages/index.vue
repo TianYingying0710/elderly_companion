@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import TabBar from '../../components/TabBar.vue'
 import { ICONS } from '../../assets/icons'
 import { filterMessages, MESSAGE_FILTERS } from '../../domain/messages'
 import { messages } from '../../mock/data'
@@ -58,7 +57,6 @@ const categoryBgs: Record<MessageCategory, string> = {
       </view>
     </view>
 
-    <TabBar current="messages" />
   </view>
 </template>
 

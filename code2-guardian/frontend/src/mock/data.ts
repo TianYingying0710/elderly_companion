@@ -31,9 +31,6 @@ export const healthMetrics: HealthMetric[] = [
   { key: 'sleep', label: '睡眠', value: '7.2', unit: '小时', badge: '良好' },
 ]
 
-/** 近 7 天趋势的虚构数值（仅用于绘制折线，不代表真实健康数据） */
-export const trendValues: number[] = [2.8, 3.6, 3.2, 4.1, 3.7, 4.4, 4.0]
-
 export const reminders: ReminderItem[] = [
   { id: 1, title: '服用降压药', time: '08:30', icon: 'pill' },
   { id: 2, title: '适当散步', time: '15:00', icon: 'walk' },

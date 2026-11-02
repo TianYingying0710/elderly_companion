@@ -17,6 +17,23 @@ export interface HealthMetric {
   badge: string
 }
 
+export interface HeartRateTrendPoint {
+  dateLabel: string
+  value: number
+}
+
+export interface PlotPadding {
+  left: number
+  right: number
+  top: number
+  bottom: number
+}
+
+export interface TrendCoordinate {
+  x: number
+  y: number
+}
+
 export type ReminderIcon = 'pill' | 'walk'
 
 export interface ReminderItem {
