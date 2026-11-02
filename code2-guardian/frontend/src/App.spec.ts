@@ -28,10 +28,20 @@ describe('guardian frontend', () => {
     expect(pages.tabBar.list).toHaveLength(4)
   })
 
-  it('keeps planned home entrances honest and reminders read-only', () => {
+  it('wires the three approved home entries to their secondary routes', () => {
     const page = readFileSync(new URL('./pages/index/index.vue', import.meta.url), 'utf8')
-    expect(page).toContain("function showPlannedFeature()")
-    expect(page.match(/@tap="showPlannedFeature"/g)).toHaveLength(3)
+    const handlerBody = (name: string) => {
+      const matched = page.match(new RegExp(`function ${name}\\(\\) \\{([\\s\\S]*?)\\n\\}`))
+      return matched ? matched[1].trim() : ''
+    }
+
+    expect(page).not.toContain('showPlannedFeature')
+    expect(page).toContain('@tap="openElderDetail"')
+    expect(page).toContain('@tap="openHealthTrend"')
+    expect(page).toContain('@tap="openReminders"')
+    expect(handlerBody('openElderDetail')).toBe('navigator.open(GUARDIAN_SECONDARY_ROUTES.elderDetail)')
+    expect(handlerBody('openHealthTrend')).toBe('navigator.open(GUARDIAN_SECONDARY_ROUTES.healthTrend)')
+    expect(handlerBody('openReminders')).toBe('navigator.open(GUARDIAN_SECONDARY_ROUTES.reminders)')
     expect(page).toContain('健康概况')
     expect(page).toContain('演示数据')
     expect(page).not.toContain('class="circle"')

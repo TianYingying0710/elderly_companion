@@ -34,6 +34,33 @@ export interface TrendCoordinate {
   y: number
 }
 
+/** 趋势画布测量结果：CSS 像素尺寸与像素比 */
+export interface TrendCanvasMetrics {
+  width: number
+  height: number
+  dpr: number
+}
+
+/** 画布位图尺寸：位图边长 = CSS 边长 × 像素比（向下取整） */
+export interface TrendCanvasBitmap {
+  width: number
+  height: number
+}
+
+/** 折线区域填充闭合路径：上沿折线 + 下沿基线 */
+export interface TrendAreaPath {
+  top: TrendCoordinate[]
+  baseline: number
+}
+
+/** 画布触摸区域（CSS 像素），与布局尺寸一致，不随位图分辨率变化 */
+export interface TrendTouchRegion {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
 export type ReminderIcon = 'pill' | 'walk'
 
 export interface ReminderItem {

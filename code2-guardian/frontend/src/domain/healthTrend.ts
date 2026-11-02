@@ -16,7 +16,10 @@ export function buildTrendPoints(
   height: number,
   padding: PlotPadding,
 ): TrendCoordinate[] {
+  // 画布尚未完成布局时尺寸为 0；此时返回空数组，调用方直接跳过绘制，
+  // 避免按 0 尺寸算出一条贴边的假曲线。
   if (values.length === 0) return []
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return []
 
   const plotWidth = Math.max(0, width - padding.left - padding.right)
   const plotHeight = Math.max(0, height - padding.top - padding.bottom)

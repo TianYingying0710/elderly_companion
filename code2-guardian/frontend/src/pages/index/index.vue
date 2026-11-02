@@ -3,6 +3,15 @@ import { getCurrentInstance, onMounted } from 'vue'
 import { ICONS } from '../../assets/icons'
 import { buildTrendPoints, heartRateTrend } from '../../domain/healthTrend'
 import {
+  DEFAULT_PIXEL_RATIO,
+  buildTrendAreaPath,
+  isCanvasMeasurable,
+  resolveCanvasBitmap,
+  resolveTouchRegion,
+} from '../../domain/trendCanvas'
+import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
+import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
+import {
   elderProfile,
   healthMetrics,
   healthUpdatedAt,
@@ -24,8 +33,23 @@ const reminderIcons: Record<string, string> = {
   walk: ICONS.walkGreen,
 }
 
-function showPlannedFeature() {
-  uni.showToast({ title: '功能建设中', icon: 'none' })
+// 二级页面统一走 navigateTo，并由 navigator 内部拦截重复点击、失败时提示。
+const navigator = createSecondaryNavigator({
+  navigateTo: (options) =>
+    uni.navigateTo({ url: options.url, fail: options.fail, complete: options.complete }),
+  showToast: (options) => uni.showToast({ title: options.title, icon: options.icon }),
+})
+
+function openElderDetail() {
+  navigator.open(GUARDIAN_SECONDARY_ROUTES.elderDetail)
+}
+
+function openHealthTrend() {
+  navigator.open(GUARDIAN_SECONDARY_ROUTES.healthTrend)
+}
+
+function openReminders() {
+  navigator.open(GUARDIAN_SECONDARY_ROUTES.reminders)
 }
 
 /** 绘制近 7 天趋势折线（虚构演示数据） */
@@ -39,45 +63,53 @@ function drawTrend() {
         width: number
         height: number
       }
-      if (!node || !width) return
-      const dpr = uni.getSystemInfoSync().pixelRatio || 2
-      node.width = width * dpr
-      node.height = height * dpr
+      const dpr = uni.getSystemInfoSync().pixelRatio || DEFAULT_PIXEL_RATIO
+      // 尺寸未就绪（0 或 NaN）时不绘制，避免画出一条贴边的假曲线
+      if (!node) return
+      const metrics = { width, height, dpr }
+      if (!isCanvasMeasurable(metrics)) return
+
+      const bitmap = resolveCanvasBitmap(metrics)
+      node.width = bitmap.width
+      node.height = bitmap.height
       const ctx = node.getContext('2d')
       if (!ctx) return
-      ctx.scale(dpr, dpr)
 
-       ctx.clearRect(0, 0, width, height)
-       const padding = { left: 10, right: 10, top: 10, bottom: 12 }
-       const pts = buildTrendPoints(heartRateTrend.map((point) => point.value), width, height, padding)
-       if (pts.length === 0) return
+      // 只缩放绘制坐标系，不改元素布局尺寸：位图比样式尺寸大，但显示框不变
+      const touch = resolveTouchRegion(metrics)
+      ctx.setTransform(bitmap.width / touch.width, 0, 0, bitmap.height / touch.height, 0, 0)
+      ctx.clearRect(0, 0, touch.width, touch.height)
 
-       ctx.save()
-       ctx.beginPath()
-       ctx.rect(padding.left, padding.top, width - padding.left - padding.right, height - padding.top - padding.bottom)
-       ctx.clip()
+      const padding = { left: 10, right: 10, top: 10, bottom: 12 }
+      const pts = buildTrendPoints(heartRateTrend.map((point) => point.value), touch.width, touch.height, padding)
+      if (pts.length === 0) return
+      const { top, baseline } = buildTrendAreaPath(pts, metrics, padding)
+
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(padding.left, padding.top, touch.width - padding.left - padding.right, touch.height - padding.top - padding.bottom)
+      ctx.clip()
 
       // 面积填充
       ctx.beginPath()
-      ctx.moveTo(pts[0].x, pts[0].y)
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
-       const baseline = height - padding.bottom
-       ctx.lineTo(pts[pts.length - 1].x, baseline)
-       ctx.lineTo(pts[0].x, baseline)
+      ctx.moveTo(top[0].x, top[0].y)
+      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i].x, top[i].y)
+      ctx.lineTo(top[top.length - 1].x, baseline)
+      ctx.lineTo(top[0].x, baseline)
       ctx.closePath()
       ctx.fillStyle = 'rgba(37, 99, 235, 0.08)'
       ctx.fill()
 
       // 折线
       ctx.beginPath()
-      ctx.moveTo(pts[0].x, pts[0].y)
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y)
+      ctx.moveTo(top[0].x, top[0].y)
+      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i].x, top[i].y)
       ctx.strokeStyle = '#2563eb'
       ctx.lineWidth = 2
       ctx.lineJoin = 'round'
       ctx.lineCap = 'round'
       ctx.stroke()
-       ctx.restore()
+      ctx.restore()
     })
     .exec()
 }
@@ -98,7 +130,7 @@ onMounted(drawTrend)
       </view>
 
       <!-- 老人卡片 -->
-      <view class="card elder-card" @tap="showPlannedFeature">
+      <view class="card elder-card" @tap="openElderDetail">
         <view class="avatar avatar-elder">
           <image class="avatar-icon" :src="ICONS.userWhite" mode="aspectFit" />
         </view>
@@ -135,7 +167,7 @@ onMounted(drawTrend)
 
       <!-- 健康趋势 -->
       <view class="card trend-card">
-        <view class="card-head" @tap="showPlannedFeature">
+        <view class="card-head" @tap="openHealthTrend">
           <view>
             <view class="trend-title-row">
               <text class="card-title">近7天健康趋势</text>
@@ -146,7 +178,9 @@ onMounted(drawTrend)
           <view class="chevron" />
         </view>
         <view class="trend">
-          <canvas id="trendCanvas" type="2d" class="trend-canvas" />
+          <view class="trend-canvas-box">
+            <canvas id="trendCanvas" type="2d" class="trend-canvas" />
+          </view>
         </view>
         <view class="trend-dates">
           <text v-for="point in heartRateTrend" :key="point.dateLabel">{{ point.dateLabel.slice(3) }}</text>
@@ -155,7 +189,7 @@ onMounted(drawTrend)
 
       <!-- 今日提醒（只读展示） -->
       <view class="card">
-        <view class="card-head" @tap="showPlannedFeature">
+        <view class="card-head" @tap="openReminders">
           <text class="card-title">今日提醒（{{ reminders.length }}）</text>
           <view class="chevron" />
         </view>
@@ -341,6 +375,15 @@ onMounted(drawTrend)
 .trend {
   margin-top: 20rpx;
   width: 100%;
+  overflow: hidden;
+}
+/* 画布外层固定显示尺寸：位图分辨率可以更大，但布局框不外扩。
+   原生 canvas 的显示框由这一层约束，父级 overflow 不参与裁剪。 */
+.trend-canvas-box {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 180rpx;
   overflow: hidden;
 }
 .trend-title-row {
