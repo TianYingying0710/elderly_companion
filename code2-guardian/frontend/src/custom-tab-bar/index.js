@@ -1,4 +1,4 @@
-const items = require('./items.json')
+const items = require('./items')
 
 Component({
   data: { items, selected: 0, switching: false },

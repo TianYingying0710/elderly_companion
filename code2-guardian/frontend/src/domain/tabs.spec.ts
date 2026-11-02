@@ -2,13 +2,15 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
-const TAB_ITEMS = JSON.parse(source('../custom-tab-bar/items.json')) as Array<{
+const itemsModule = { exports: [] as Array<{
   key: string
   label: string
   path: string
   iconPath: string
   selectedIconPath: string
-}>
+}> }
+new Function('module', source('../custom-tab-bar/items.js'))(itemsModule)
+const TAB_ITEMS = itemsModule.exports
 
 describe('guardian primary tabs', () => {
   it('declares the four unique primary routes in UI order', () => {
@@ -37,9 +39,9 @@ describe('guardian primary tabs', () => {
       expect(page).not.toContain("components/TabBar.vue")
       expect(page).not.toContain('<TabBar')
     }
-    for (const filename of ['index.json', 'index.wxml', 'index.wxss', 'index.js', 'items.json']) {
+    for (const filename of ['index.json', 'index.wxml', 'index.wxss', 'index.js', 'items.js']) {
       expect(() => source(`../custom-tab-bar/${filename}`)).not.toThrow()
     }
-    expect(source('../custom-tab-bar/index.js')).toContain("require('./items.json')")
+    expect(source('../custom-tab-bar/index.js')).toContain("require('./items')")
   })
 })
