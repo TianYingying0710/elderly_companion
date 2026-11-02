@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { getCurrentInstance, onMounted } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
+import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { buildTrendPoints, heartRateTrend } from '../../domain/healthTrend'
 import {
   DEFAULT_PIXEL_RATIO,
@@ -115,6 +117,12 @@ function drawTrend() {
 }
 
 onMounted(drawTrend)
+
+// 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
+onShow(() => {
+  const page = getCurrentPages()[getCurrentPages().length - 1] as unknown as TabBarPage
+  syncTabBar(page?.getTabBar?.())
+})
 </script>
 
 <template>

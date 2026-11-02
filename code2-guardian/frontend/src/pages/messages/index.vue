@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
+import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { filterMessages, MESSAGE_FILTERS } from '../../domain/messages'
 import { messages } from '../../mock/data'
 import type { MessageCategory, MessageFilter } from '../../types'
@@ -21,6 +23,12 @@ const categoryBgs: Record<MessageCategory, string> = {
   社区通知: '#e8f1fd',
   系统消息: '#eef2f8',
 }
+
+// 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
+onShow(() => {
+  const page = getCurrentPages()[getCurrentPages().length - 1] as unknown as TabBarPage
+  syncTabBar(page?.getTabBar?.())
+})
 </script>
 
 <template>

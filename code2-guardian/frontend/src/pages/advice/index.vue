@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
+import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { adviceBanner, adviceList } from '../../mock/data'
 import type { AdviceIcon } from '../../types'
 
@@ -16,6 +18,12 @@ const adviceIconBgs: Record<AdviceIcon, string> = {
   sleep: '#eceefd',
   diet: '#fdf3e7',
 }
+
+// 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
+onShow(() => {
+  const page = getCurrentPages()[getCurrentPages().length - 1] as unknown as TabBarPage
+  syncTabBar(page?.getTabBar?.())
+})
 </script>
 
 <template>
