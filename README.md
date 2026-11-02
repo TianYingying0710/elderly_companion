@@ -73,6 +73,12 @@ $env:SILVER_COMPANION_PYTHON = "E:\workspace\silver-companion-env\python.exe"
 .\scripts\start-community-backend.ps1 -Python "E:\workspace\silver-companion-env\python.exe"
 ```
 
+社区后端启动脚本会先把工作目录切到 `code3-community\backend`，因此无论从哪个目录调用，
+数据库相对路径都稳定落在该后端目录下。调用者未设置 `COMMUNITY_DATABASE_PATH` 时，脚本会临时
+指向 `code3-community\backend\data\community.db`；已显式设置时保留原值。脚本退出后恢复原工作
+目录与原来的环境变量。后端自身仍要求该变量存在：缺失时 `/health` 照常返回 `200`，任务接口
+返回 `503`，不会降级成空列表。
+
 后端健康检查：
 
 ```powershell
@@ -89,6 +95,10 @@ E:\c2--\code\code3-community\frontend\dist\dev\mp-weixin
 ```
 
 生产构建使用 `npm run build:mp-weixin`，并导入对应的 `dist\build\mp-weixin`。源码无需移动到微信开发者工具目录，私有 AppID 也不得提交到仓库。
+
+社区端与监护人端后端默认监听 `127.0.0.1` 的 HTTP 端口，属于未登记的合法域名。本地调试时需在
+微信开发者工具「详情 → 本地设置」中勾选「不校验合法域名、web-view（业务域名）、TLS 版本以及
+HTTPS 证书」，该开关只写入导入目录下的 `project.private.config.json`，不会进入仓库。
 
 老人端 Android 工程同步与打开：
 
