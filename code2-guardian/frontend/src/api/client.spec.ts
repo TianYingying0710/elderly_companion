@@ -23,4 +23,24 @@ describe('guardian mini-program API client', () => {
 
     await expect(apiRequest('/health')).rejects.toThrow('API request failed: 503')
   })
+
+  it('preserves structured backend error details', async () => {
+    const request = vi.fn((options: UniApp.RequestOptions) => {
+      options.success?.({
+        data: { error: { code: 'health_data_source_unavailable', message: '健康数据源尚未接入', fields: [] } },
+        statusCode: 503,
+        header: {},
+        cookies: [],
+      })
+      return {} as UniApp.RequestTask
+    })
+    const apiRequest = createApiClient('http://127.0.0.1:8002', request)
+
+    await expect(apiRequest('/health-overview/elder_1')).rejects.toMatchObject({
+      status: 503,
+      code: 'health_data_source_unavailable',
+      message: '健康数据源尚未接入',
+      fields: [],
+    })
+  })
 })
