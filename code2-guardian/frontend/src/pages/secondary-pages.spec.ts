@@ -26,11 +26,13 @@ describe('elder detail page', () => {
 })
 
 describe('health trend detail page', () => {
-  it('reuses the existing seven day resting heart-rate model instead of copying it', () => {
-    expect(HEALTH_TREND).toContain("from '../../domain/healthTrend'")
-    expect(HEALTH_TREND).toContain('heartRateTrend')
+  it('reuses the trend model through the provider instead of copying it', () => {
+    expect(HEALTH_TREND).toContain('useHealthData')
     expect(HEALTH_TREND).toContain('buildTrendPoints')
+    expect(HEALTH_TREND).toContain('summarizeTrend')
     expect(HEALTH_TREND).not.toContain('dateLabel:')
+    // 不再直接 import 趋势常量 heartRateTrend（改为通过 Provider 获取），但保留工具函数 buildTrendPoints
+    expect(HEALTH_TREND).not.toContain('heartRateTrend')
   })
 
   it('shows the per-day values together with derived statistics', () => {

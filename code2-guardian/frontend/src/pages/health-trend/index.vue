@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { getCurrentInstance, onMounted } from 'vue'
-import { buildTrendPoints, heartRateTrend } from '../../domain/healthTrend'
+import { computed, getCurrentInstance, onMounted, watch } from 'vue'
+import { buildTrendPoints } from '../../domain/healthTrend'
 import {
   DEFAULT_PIXEL_RATIO,
   buildTrendAreaPath,
@@ -9,20 +9,27 @@ import {
   resolveTouchRegion,
 } from '../../domain/trendCanvas'
 import { summarizeTrend } from '../../domain/trendSummary'
-import { healthUpdatedAt } from '../../mock/data'
+import { useHealthData } from '../../composables/useHealthData'
+import { MockHealthDataProvider } from '../../data/healthDataProvider'
 
 const instance = getCurrentInstance()
-const summary = summarizeTrend(heartRateTrend)
+
+// 健康数据只通过 Provider 获取，不直接读 mock 常量。
+const healthProvider = new MockHealthDataProvider()
+const { snapshot: healthSnapshot } = useHealthData(healthProvider)
+
+const trend = computed(() => healthSnapshot.value?.trend ?? [])
+const summary = computed(() => summarizeTrend(trend.value))
 
 const formatValue = (value: number | null) => (value === null ? '--' : String(value))
 
-const summaryItems = [
-  { label: '最高', value: formatValue(summary.max) },
-  { label: '最低', value: formatValue(summary.min) },
-  { label: '平均', value: formatValue(summary.average) },
-]
+const summaryItems = computed(() => [
+  { label: '最高', value: formatValue(summary.value.max) },
+  { label: '最低', value: formatValue(summary.value.min) },
+  { label: '平均', value: formatValue(summary.value.average) },
+])
 
-/** 绘制近 7 天静息心率折线（复用首页同一份虚构演示序列） */
+/** 绘制近 7 天静息心率折线（复用 Provider 提供的趋势序列） */
 function drawTrend() {
   const query = uni.createSelectorQuery().in(instance?.proxy)
   query
@@ -51,7 +58,7 @@ function drawTrend() {
       ctx.clearRect(0, 0, touch.width, touch.height)
 
       const padding = { left: 10, right: 10, top: 10, bottom: 12 }
-      const pts = buildTrendPoints(heartRateTrend.map((point) => point.value), touch.width, touch.height, padding)
+      const pts = buildTrendPoints(trend.value.map((point) => point.value), touch.width, touch.height, padding)
       if (pts.length === 0) return
       const { top, baseline } = buildTrendAreaPath(pts, metrics, padding)
 
@@ -83,49 +90,58 @@ function drawTrend() {
 }
 
 onMounted(drawTrend)
+watch(healthSnapshot, () => drawTrend())
 </script>
 
 <template>
   <view class="page">
-    <!-- 趋势曲线（虚构演示数据） -->
-    <view class="card">
-      <view class="card-head">
-        <view>
-          <view class="title-row">
-            <text class="card-title">近7天健康趋势</text>
-            <text class="demo-tag">演示数据</text>
+    <!-- 有数据 / 过期：显示趋势与统计 -->
+    <template v-if="healthSnapshot && (healthSnapshot.state === 'has_data' || healthSnapshot.state === 'stale')">
+      <!-- 趋势曲线 -->
+      <view class="card">
+        <view class="card-head">
+          <view>
+            <view class="title-row">
+              <text class="card-title">近7天健康趋势</text>
+              <text class="demo-tag">演示数据</text>
+            </view>
+            <text class="trend-metric">每日平均静息心率（次/分）</text>
           </view>
-          <text class="trend-metric">每日平均静息心率（次/分）</text>
+          <text class="card-extra">{{ healthSnapshot.updatedAt }}</text>
         </view>
-        <text class="card-extra">{{ healthUpdatedAt }}</text>
-      </view>
-      <view class="trend-canvas-box">
-        <canvas id="trendCanvas" type="2d" class="trend-canvas" />
-      </view>
-      <view class="trend-dates">
-        <text v-for="point in heartRateTrend" :key="point.dateLabel">{{ point.dateLabel }}</text>
-      </view>
-    </view>
-
-    <view class="card">
-      <view class="card-head">
-        <text class="card-title">统计</text>
-        <text class="card-extra">单位：次/分</text>
-      </view>
-      <view class="summary">
-        <view v-for="item in summaryItems" :key="item.label" class="summary-item">
-          <text class="summary-label">{{ item.label }}</text>
-          <text class="summary-value">{{ item.value }}</text>
+        <view class="trend-canvas-box">
+          <canvas id="trendCanvas" type="2d" class="trend-canvas" />
+        </view>
+        <view class="trend-dates">
+          <text v-for="point in trend" :key="point.dateLabel">{{ point.dateLabel }}</text>
         </view>
       </view>
-    </view>
 
-    <view class="card">
-      <text class="card-title">每日数值</text>
-      <view v-for="point in heartRateTrend" :key="point.dateLabel" class="day-row">
-        <text class="day-label">{{ point.dateLabel }}</text>
-        <text class="day-value">{{ point.value }} 次/分</text>
+      <view class="card">
+        <view class="card-head">
+          <text class="card-title">统计</text>
+          <text class="card-extra">单位：次/分</text>
+        </view>
+        <view class="summary">
+          <view v-for="item in summaryItems" :key="item.label" class="summary-item">
+            <text class="summary-label">{{ item.label }}</text>
+            <text class="summary-value">{{ item.value }}</text>
+          </view>
+        </view>
       </view>
+
+      <view class="card">
+        <text class="card-title">每日数值</text>
+        <view v-for="point in trend" :key="point.dateLabel" class="day-row">
+          <text class="day-label">{{ point.dateLabel }}</text>
+          <text class="day-value">{{ point.value }} 次/分</text>
+        </view>
+      </view>
+    </template>
+
+    <!-- 空态：未接入 / 连接中 / 暂无数据 / 异常 -->
+    <view v-else class="card empty">
+      <text class="empty-text">{{ healthSnapshot?.message ?? '正在连接' }}</text>
     </view>
   </view>
 </template>
@@ -241,4 +257,15 @@ onMounted(drawTrend)
   color: #1f2937;
   font-weight: 500;
 }
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80rpx 28rpx;
+}
+.empty-text {
+  font-size: 26rpx;
+  color: #9aa3b2;
+}
+
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getCurrentInstance, onMounted } from 'vue'
+import { getCurrentInstance, onMounted, watch } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
 import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
@@ -13,16 +13,20 @@ import {
 } from '../../domain/trendCanvas'
 import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
 import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
+import { useHealthData } from '../../composables/useHealthData'
+import { MockHealthDataProvider } from '../../data/healthDataProvider'
 import {
   elderProfile,
-  healthMetrics,
-  healthUpdatedAt,
   reminders,
 } from '../../mock/data'
 
 const instance = getCurrentInstance()
 
 const statusBarHeight = uni.getSystemInfoSync().statusBarHeight ?? 0
+
+// 健康数据只通过 Provider 获取，不直接读 mock 的健康常量。
+const healthProvider = new MockHealthDataProvider()
+const { snapshot: healthSnapshot } = useHealthData(healthProvider)
 
 const metricIcons: Record<string, string> = {
   heartRate: ICONS.heartRed,
@@ -83,7 +87,8 @@ function drawTrend() {
       ctx.clearRect(0, 0, touch.width, touch.height)
 
       const padding = { left: 10, right: 10, top: 10, bottom: 12 }
-      const pts = buildTrendPoints(heartRateTrend.map((point) => point.value), touch.width, touch.height, padding)
+      const trend = healthSnapshot.value?.trend ?? []
+      const pts = buildTrendPoints(trend.map((point) => point.value), touch.width, touch.height, padding)
       if (pts.length === 0) return
       const { top, baseline } = buildTrendAreaPath(pts, metrics, padding)
 
@@ -118,6 +123,9 @@ function drawTrend() {
 
 onMounted(drawTrend)
 
+// 快照就绪（含 has_data/stale）后重绘趋势；其余状态 trend 为空，drawTrend 内部会跳过。
+watch(healthSnapshot, () => drawTrend())
+
 // 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
 onShow(() => {
   const page = getCurrentPages()[getCurrentPages().length - 1] as unknown as TabBarPage
@@ -151,17 +159,19 @@ onShow(() => {
     </view>
 
     <view class="body">
-      <!-- 健康概况 -->
+      <!-- 健康概况（状态化：有数据/过期才显示数值，否则空态） -->
       <view class="card">
         <view class="card-head">
           <text class="card-title">健康概况</text>
           <view class="health-meta">
-            <text class="demo-tag">演示数据</text>
-            <text class="card-extra">{{ healthUpdatedAt }}</text>
+            <text v-if="healthSnapshot?.isDemo" class="demo-tag">演示数据</text>
+            <text v-if="healthSnapshot?.updatedAt" class="card-extra">{{ healthSnapshot.updatedAt }}</text>
           </view>
         </view>
-        <view class="metrics">
-          <view v-for="m in healthMetrics" :key="m.key" class="metric">
+
+        <!-- 有数据 / 过期：显示指标 -->
+        <view v-if="healthSnapshot && (healthSnapshot.state === 'has_data' || healthSnapshot.state === 'stale')" class="metrics">
+          <view v-for="m in healthSnapshot.metrics" :key="m.key" class="metric">
             <view class="metric-icon">
               <image :src="metricIcons[m.key]" mode="aspectFit" />
             </view>
@@ -171,27 +181,39 @@ onShow(() => {
             <text class="badge">{{ m.badge }}</text>
           </view>
         </view>
+
+        <!-- 空态：未接入 / 连接中 / 暂无数据 / 异常 -->
+        <view v-else class="health-empty">
+          <text class="empty-text">{{ healthSnapshot?.message ?? '正在连接' }}</text>
+        </view>
       </view>
 
-      <!-- 健康趋势 -->
+      <!-- 健康趋势（状态化：有数据/过期才绘制曲线） -->
       <view class="card trend-card">
         <view class="card-head" @tap="openHealthTrend">
           <view>
             <view class="trend-title-row">
               <text class="card-title">近7天健康趋势</text>
-              <text class="demo-tag">演示数据</text>
+              <text v-if="healthSnapshot?.isDemo" class="demo-tag">演示数据</text>
             </view>
             <text class="trend-metric">每日平均静息心率（次/分）</text>
           </view>
           <view class="chevron" />
         </view>
-        <view class="trend">
-          <view class="trend-canvas-box">
-            <canvas id="trendCanvas" type="2d" class="trend-canvas" />
+
+        <template v-if="healthSnapshot && (healthSnapshot.state === 'has_data' || healthSnapshot.state === 'stale')">
+          <view class="trend">
+            <view class="trend-canvas-box">
+              <canvas id="trendCanvas" type="2d" class="trend-canvas" />
+            </view>
           </view>
-        </view>
-        <view class="trend-dates">
-          <text v-for="point in heartRateTrend" :key="point.dateLabel">{{ point.dateLabel.slice(3) }}</text>
+          <view class="trend-dates">
+            <text v-for="point in healthSnapshot.trend" :key="point.dateLabel">{{ point.dateLabel.slice(3) }}</text>
+          </view>
+        </template>
+
+        <view v-else class="health-empty">
+          <text class="empty-text">{{ healthSnapshot?.message ?? '正在连接' }}</text>
         </view>
       </view>
 
@@ -460,4 +482,16 @@ onShow(() => {
   font-size: 22rpx;
   color: #9aa3b2;
 }
+.health-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx 0;
+  margin-top: 20rpx;
+}
+.empty-text {
+  font-size: 26rpx;
+  color: #9aa3b2;
+}
+
 </style>
