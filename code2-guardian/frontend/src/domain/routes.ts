@@ -6,6 +6,7 @@ export const GUARDIAN_SECONDARY_ROUTES = {
   adviceDetail: '/pages/advice-detail/index',
   help: '/pages/help/index',
   about: '/pages/about/index',
+  messageDetail: '/pages/message-detail/index',
 } as const
 
 export type GuardianSecondaryRoute =

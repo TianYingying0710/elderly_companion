@@ -9,7 +9,8 @@
     { "path": "pages/reminders/index", "style": { "navigationBarTitleText": "今日提醒列表" } },
     { "path": "pages/advice-detail/index", "style": { "navigationBarTitleText": "AI 建议详情" } },
     { "path": "pages/help/index", "style": { "navigationBarTitleText": "使用帮助" } },
-    { "path": "pages/about/index", "style": { "navigationBarTitleText": "关于银龄伴" } }
+    { "path": "pages/about/index", "style": { "navigationBarTitleText": "关于银龄伴" } },
+    { "path": "pages/message-detail/index", "style": { "navigationBarTitleText": "消息详情" } }
   ],
   "tabBar": {
     "custom": true,

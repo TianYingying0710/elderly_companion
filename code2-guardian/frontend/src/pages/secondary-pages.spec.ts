@@ -81,12 +81,16 @@ describe('secondary pages share the demo contract', () => {
       'pages/advice-detail/index',
       'pages/help/index',
       'pages/about/index',
+      'pages/message-detail/index',
     ])
   })
 
-  it('leaves the unapproved primary tab pages on their original behaviour', () => {
-    const page = source('./messages/index.vue')
-    expect(page, 'messages 页不应接入二级路由').not.toContain('GUARDIAN_SECONDARY_ROUTES')
-    expect(page, 'messages 页不应新增页面跳转').not.toContain('navigateTo')
+  it('keeps the profile tab as the only menu-entry page and messages wired to detail', () => {
+    // 本轮收口：profile 接入 help/about，messages 接入 message-detail，均为已批准入口
+    const profilePage = source('./profile/index.vue')
+    const messagesPage = source('./messages/index.vue')
+    expect(profilePage).toContain('GUARDIAN_SECONDARY_ROUTES')
+    expect(messagesPage).toContain('GUARDIAN_SECONDARY_ROUTES')
+    expect(messagesPage).toContain('messageDetail')
   })
 })

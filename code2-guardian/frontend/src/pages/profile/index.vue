@@ -39,13 +39,13 @@ onShow(() => {
       </view>
     </view>
 
-    <!-- 功能列表（只读展示） -->
+    <!-- 功能列表：仅「使用帮助」「关于银龄伴」可点击，其余为只读展示 -->
     <view class="menu">
       <view v-for="(item, idx) in menuItems" :key="item.id" class="menu-item" @tap="openMenuItem(item.id)">
         <view class="menu-row">
           <image class="menu-icon" :src="ICONS[item.icon]" mode="aspectFit" />
           <text class="menu-label">{{ item.label }}</text>
-          <view class="chevron" />
+          <view v-if="item.id === 5 || item.id === 6" class="chevron" />
         </view>
         <view v-if="idx < menuItems.length - 1" class="divider" />
       </view>

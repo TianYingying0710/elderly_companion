@@ -13,16 +13,16 @@
 
       <view class="section">
         <text class="section-title">关于我们</text>
-        <text class="section-text">银龄伴是一款面向监护人的健康关怀工具，帮助子女更好地关注家中老人的日常健康与生活状态。</text>
+        <text class="section-text">银龄伴是一款面向监护人的健康关怀演示应用，用于展示看护场景下的界面与交互流程。</text>
       </view>
 
       <view class="section">
-        <text class="section-title">核心功能</text>
-        <text class="section-text">老人健康画像 · AI 关怀建议 · 消息提醒 · 家庭看护</text>
+        <text class="section-title">演示模块</text>
+        <text class="section-text">老人画像展示 · 关怀建议展示 · 消息列表 · 帮助与关于</text>
       </view>
 
       <view class="footer">
-        <text class="footer-text">当前为演示版本，页面数据均为虚构示例。</text>
+        <text class="footer-text">当前为演示版本，页面数据均为虚构示例，不代表真实健康监测或看护能力。</text>
         <text class="demo-tag">演示数据</text>
       </view>
     </view>

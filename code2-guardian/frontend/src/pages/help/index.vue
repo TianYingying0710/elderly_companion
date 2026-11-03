@@ -13,26 +13,26 @@
 
       <view class="section">
         <text class="section-title">首页 · 老人画像</text>
-        <text class="section-text">查看已绑定老人的基本信息、健康概况与近 7 天静息心率趋势。</text>
+        <text class="section-text">查看演示的老人基本信息、健康指标与近 7 天静息心率趋势示例。</text>
       </view>
 
       <view class="section">
         <text class="section-title">AI 建议</text>
-        <text class="section-text">查看基于演示数据生成的关怀建议，点击卡片可查看详情。</text>
+        <text class="section-text">查看基于虚构数据生成的关怀建议示例，点击卡片可查看详情。</text>
       </view>
 
       <view class="section">
         <text class="section-title">消息</text>
-        <text class="section-text">按分类查看健康提醒、求助消息与社区通知。</text>
+        <text class="section-text">查看分类的示例消息，点击卡片可查看详情。</text>
       </view>
 
       <view class="section">
         <text class="section-title">我的</text>
-        <text class="section-text">查看监护人信息与功能入口。</text>
+        <text class="section-text">查看监护人信息示例与功能入口。</text>
       </view>
 
       <view class="footer">
-        <text class="footer-text">当前为演示版本，页面数据均为虚构示例。</text>
+        <text class="footer-text">当前为演示版本，页面内容均为虚构示例，不代表真实健康监测或看护能力。</text>
       </view>
     </view>
   </view>

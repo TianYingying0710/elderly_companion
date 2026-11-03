@@ -2,6 +2,8 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
+import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
+import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
 import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { filterMessages, MESSAGE_FILTERS } from '../../domain/messages'
 import { messages } from '../../mock/data'
@@ -9,6 +11,17 @@ import type { MessageCategory, MessageFilter } from '../../types'
 
 const current = ref<MessageFilter>('全部')
 const filtered = computed(() => filterMessages(messages, current.value))
+
+// 二级页面统一走 navigateTo，由 navigator 内部拦截重复点击、失败时提示。
+const navigator = createSecondaryNavigator({
+  navigateTo: (options) =>
+    uni.navigateTo({ url: options.url, fail: options.fail, complete: options.complete }),
+  showToast: (options) => uni.showToast({ title: options.title, icon: options.icon }),
+})
+
+function openMessageDetail(id: number) {
+  navigator.open(`${GUARDIAN_SECONDARY_ROUTES.messageDetail}?id=${id}`)
+}
 
 const categoryIcons: Record<MessageCategory, string> = {
   健康提醒: ICONS.heartRed,
@@ -50,7 +63,7 @@ onShow(() => {
 
     <!-- 消息列表 -->
     <view class="list">
-      <view v-for="m in filtered" :key="m.id" class="msg-card">
+      <view v-for="m in filtered" :key="m.id" class="msg-card" @tap="openMessageDetail(m.id)">
         <view class="msg-icon" :style="{ background: categoryBgs[m.category] }">
           <text v-if="m.category === '求助消息'" class="sos">SOS</text>
           <image v-else :src="categoryIcons[m.category]" mode="aspectFit" />
