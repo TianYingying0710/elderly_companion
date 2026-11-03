@@ -4,6 +4,8 @@ export const GUARDIAN_SECONDARY_ROUTES = {
   healthTrend: '/pages/health-trend/index',
   reminders: '/pages/reminders/index',
   adviceDetail: '/pages/advice-detail/index',
+  help: '/pages/help/index',
+  about: '/pages/about/index',
 } as const
 
 export type GuardianSecondaryRoute =

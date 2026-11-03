@@ -1,8 +1,23 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
+import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
+import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
 import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { guardianInfo, menuItems } from '../../mock/data'
+
+// 二级页面统一走 navigateTo，由 navigator 内部拦截重复点击、失败时提示。
+const navigator = createSecondaryNavigator({
+  navigateTo: (options) =>
+    uni.navigateTo({ url: options.url, fail: options.fail, complete: options.complete }),
+  showToast: (options) => uni.showToast({ title: options.title, icon: options.icon }),
+})
+
+// 仅「使用帮助」与「关于银龄伴」两个静态页接入跳转，其余菜单项保持只读展示。
+function openMenuItem(id: number) {
+  if (id === 5) navigator.open(GUARDIAN_SECONDARY_ROUTES.help)
+  if (id === 6) navigator.open(GUARDIAN_SECONDARY_ROUTES.about)
+}
 
 // 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
 onShow(() => {
@@ -26,7 +41,7 @@ onShow(() => {
 
     <!-- 功能列表（只读展示） -->
     <view class="menu">
-      <view v-for="(item, idx) in menuItems" :key="item.id" class="menu-item">
+      <view v-for="(item, idx) in menuItems" :key="item.id" class="menu-item" @tap="openMenuItem(item.id)">
         <view class="menu-row">
           <image class="menu-icon" :src="ICONS[item.icon]" mode="aspectFit" />
           <text class="menu-label">{{ item.label }}</text>

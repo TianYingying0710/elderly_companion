@@ -79,14 +79,14 @@ describe('secondary pages share the demo contract', () => {
       'pages/health-trend/index',
       'pages/reminders/index',
       'pages/advice-detail/index',
+      'pages/help/index',
+      'pages/about/index',
     ])
   })
 
   it('leaves the unapproved primary tab pages on their original behaviour', () => {
-    for (const tab of ['messages', 'profile']) {
-      const page = source(`./${tab}/index.vue`)
-      expect(page, `${tab} 页不应接入二级路由`).not.toContain('GUARDIAN_SECONDARY_ROUTES')
-      expect(page, `${tab} 页不应新增页面跳转`).not.toContain('navigateTo')
-    }
+    const page = source('./messages/index.vue')
+    expect(page, 'messages 页不应接入二级路由').not.toContain('GUARDIAN_SECONDARY_ROUTES')
+    expect(page, 'messages 页不应新增页面跳转').not.toContain('navigateTo')
   })
 })
