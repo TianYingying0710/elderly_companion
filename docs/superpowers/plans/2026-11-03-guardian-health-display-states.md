@@ -15,7 +15,7 @@
 - 不新增与需求无关的页面；不把演示数据标记为真实健康数据。
 - 页面不直接读取后端原始响应；保留 API Client / DTO / Mapper 边界。
 - 「有数据」状态必须显示「演示数据」，其他状态不显示健康数值。
-- 不新增硬件控制按钮；状态切换入口（`setState`）不暴露到生产页面。
+- 不新增硬件控制按钮（「连接硬件」「绑定设备」「重试」）；仅新增「导入模拟数据」/「清除模拟数据」两个演示态切换按钮，它们只操作 mock Provider，不涉及真实硬件绑定。
 
 ## 关键契约要点（实现时对照）
 
@@ -26,6 +26,9 @@
 - `trend` 纳入 `HealthOverviewSnapshot`；仅 `has_data`/`stale` 非空。
 - `HealthOverviewSnapshot` 含 `sourceStatus` 与 `isDemo`；`isDemo` 仅 `has_data`/`stale` 为 true（由 mock provider 标记）。
 - 默认快照为 `not_connected`：`{ state:'not_connected', metrics:[], trend:[], updatedAt:null, message:'尚未接入硬件', sourceStatus:'unavailable', isDemo:false }`。
+- **演示数据按钮**：健康概况卡内 `not_connected` 显示「导入模拟数据」、`has_data`/`stale` 显示「清除模拟数据」；按钮下方固定小字「模拟数据仅用于演示，不代表真实健康数据」；`connecting`/`no_data`/`error` 无按钮；趋势卡不放按钮。
+- `useHealthData` 需暴露 `reload()`（重新调 `getOverview` 并更新快照），供按钮点击后刷新。
+- 「今日提醒」卡不受状态机管辖，未接入硬件时照常显示（方案 A）。
 
 ## 文件清单
 
@@ -69,11 +72,12 @@
 ## Task 3: useHealthData 编排（TDD）
 
 **Interfaces:**
-- `useHealthData(provider)` 返回响应式 `{ state, snapshot, loading }`。
+- `useHealthData(provider)` 返回响应式 `{ state, snapshot, loading, reload }`。
 - 调用前 `loading=true`（界面 `connecting`）；settle 后按结果/异常进对应状态。
 - **错误映射**：`ApiError.code === 'health_data_source_unavailable'` → `not_connected`；其他异常 → `error`；均保留 `message`。
+- `reload()`：重新调用 `getOverview()` 并更新快照（供「导入/清除模拟数据」按钮点击后刷新）。
 
-- [ ] 写失败测试：loading 期间为 connecting；resolve 后为 has_data；普通异常 reject 为 error 且保留 message；`ApiError(code='health_data_source_unavailable')` 为 not_connected；异常不吞信息。
+- [ ] 写失败测试：loading 期间为 connecting；resolve 后为 has_data；普通异常 reject 为 error 且保留 message；`ApiError(code='health_data_source_unavailable')` 为 not_connected；异常不吞信息；`reload()` 触发二次 getOverview 并更新快照。
 - [ ] 跑 vitest 确认 RED。
 - [ ] 实现 composable。
 - [ ] 跑 vitest 确认 GREEN。
@@ -84,8 +88,9 @@
 - 首页健康概况区块：按 `state` 渲染，`has_data`/`stale` 显示指标 + 「演示数据」，其余显示空态文案、不显示数值。
 - 首页趋势区块：`has_data`/`stale` 才绘制曲线并显示「演示数据」，其余空态。
 - `health-trend` 详情页：复用 `useHealthData`，`has_data`/`stale` 渲染曲线/统计/每日数值，其余空态。
+- 首页健康概况卡内按钮：`not_connected` 显示「导入模拟数据」、`has_data`/`stale` 显示「清除模拟数据」；按钮下方固定免责小字；点击后调用 `setState` + `reload`。趋势卡不放按钮。
 
-- [ ] 写失败测试（源码字符串断言）：验证首页/详情不再直接 import 健康 mock 常量；各状态文案；「演示数据」仅出现在有数据态。
+- [ ] 写失败测试（源码字符串断言）：验证首页/详情不再直接 import 健康 mock 常量；各状态文案；「演示数据」仅出现在有数据态；「导入模拟数据」仅在 not_connected、「清除模拟数据」仅在 has_data/stale 分支出现；免责小字存在；`reload` 被按钮事件调用。
 - [ ] 跑 vitest 确认 RED。
 - [ ] 实现页面改造。
 - [ ] 跑 vitest 确认 GREEN。

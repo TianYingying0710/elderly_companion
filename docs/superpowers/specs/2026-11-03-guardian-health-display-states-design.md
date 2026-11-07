@@ -9,6 +9,8 @@
 
 把首页健康概况、近 7 天趋势，以及 `health-trend` 详情页，从「直接读取 mock 常量」改造为「通过可替换的 HealthDataProvider 获取数据并渲染明确状态」。当前无硬件、无后端健康接口，因此用一个 mock Provider 驱动六种状态，用于演示未来硬件接入后的界面表现；不新增后端、不接真实 API、不新增硬件控制按钮。
 
+> 修订（2026-11-03）：用户要求「未接入硬件」态不能是死空态，需提供「导入模拟数据」按钮让用户进入 `has_data` 态查看演示效果，并提供「清除模拟数据」按钮回到 `not_connected`。此修订**替代**原「不暴露状态切换入口到生产页面」约束——按钮仅切换 mock Provider 的演示态，不涉及真实硬件绑定。
+
 ## 六种状态定义
 
 六态由以下输入按**固定优先级**派生：
@@ -40,7 +42,8 @@ source_status = available 且 有效数据          → has_data    已连接且
 - **默认状态为 `not_connected`（未接入硬件）**，避免用户误以为已有真实数据。
 - 只有 `has_data` 与 `stale` 显示数值，且必须标注「演示数据」。
 - `updatedAt` 只展示 Provider 提供的值，前端不拼接伪造时间。
-- 不新增任何「连接硬件」「刷新」「重试」「绑定设备」按钮——六种状态仅用于展示切换，切换入口只存在于测试与开发期 Provider，不在生产页面暴露。
+- 不新增任何「连接硬件」「刷新」「重试」「绑定设备」按钮——真实硬件接入仍不在本轮范围。
+- **仅新增「导入模拟数据」/「清除模拟数据」两个按钮**（详见下文「演示数据导入/清除按钮」一节），它们只操作 mock Provider 的演示态，不代表真实硬件绑定。
 
 ## 过期阈值（明确定义）
 
@@ -185,10 +188,50 @@ export function deriveHealthState(
 
 `deriveHealthState` 是唯一的状态派生入口，六态优先级、过期阈值、数值裁剪（非 has_data/stale 时清空 metrics/trend）全部集中在此，方便 vitest 逐一覆盖。
 
+## 演示数据导入/清除按钮
+
+用户从「未接入硬件」空态需要一个可见的下一步动作，否则体验是死的。因此引入两个按钮，只作用于 mock 演示态。
+
+### 交互流程
+
+```text
+not_connected（默认）
+  健康概况卡：空态文案「尚未接入硬件」 + [导入模拟数据] 按钮
+  趋势卡：空态文案（无按钮，随概况卡联动）
+        ↓ 点击 [导入模拟数据]
+has_data（有数据）
+  健康概况卡：三项指标 + 「演示数据」标签 + [清除模拟数据] 按钮
+  趋势卡：曲线 + 「演示数据」标签
+        ↓ 点击 [清除模拟数据]
+not_connected（回到未接入硬件）
+```
+
+### 按钮规则
+
+| 项 | 规则 |
+|---|---|
+| 按钮位置 | 仅在**健康概况卡**内；趋势卡不放按钮（避免两个入口重复） |
+| 「导入模拟数据」显示条件 | 仅 `not_connected` 态 |
+| 「清除模拟数据」显示条件 | 仅 `has_data` / `stale` 态 |
+| `connecting`/`no_data`/`error` | 不显示任何按钮 |
+| 按钮下方固定小字 | 「模拟数据仅用于演示，不代表真实健康数据」 |
+| 数据流向 | 按钮只调用 `MockHealthDataProvider.setState('has_data')` / `setState('not_connected')`，再触发 `useHealthData.reload()` 重新获取快照；不碰后端、不碰真实 API |
+
+### 与 setState 的关系
+
+- `MockHealthDataProvider.setState()` 仍然是唯一的状态切换入口，但现在通过**页面按钮**间接调用，而非仅测试/开发期手动调用。
+- 按钮在页面里**通过 Provider 接口类型**持有的是 `MockHealthDataProvider` 实例，才能调用 `setState`；未来接真实 `ApiHealthDataProvider` 时，这两个按钮**应被移除或替换**（真实硬件接入的绑定流程不在本轮设计），因为 `ApiHealthDataProvider` 不提供 `setState`。
+- 为避免把 mock 能力泄漏进接口：`HealthDataProvider` 接口**只声明 `getOverview()`**；`setState` 与 `reload` 相关能力由 `MockHealthDataProvider` 与 `useHealthData` 各自暴露，页面在「演示环境」下通过类型收窄访问。
+
+### 今日提醒卡的边界（方案 A，已确认）
+
+- 「今日提醒」是软件侧功能（服药/散步提醒），不依赖健康硬件，因此**不受六态状态机管辖**，未接入硬件时**照常显示**。
+- 不在提醒卡上额外标注「与硬件无关」等字样，保持简洁。
+
 ## 开发/测试期的状态切换（与生产隔离）
 
-- `MockHealthDataProvider` 提供一个 `setState(state: HealthDisplayState)` 方法，仅用于测试与开发期手动切换六态。
-- 该方法**不暴露给生产页面**：页面只通过 `HealthDataProvider` 接口调用 `getOverview()`，看不到 `setState`。
+- `MockHealthDataProvider` 提供一个 `setState(state: HealthDisplayState)` 方法，用于测试/开发期手动切换六态，以及供页面「导入/清除模拟数据」按钮调用。
+- 页面通过 `HealthDataProvider` 接口调用 `getOverview()`；`setState` 只在演示环境由 `MockHealthDataProvider` 实例暴露。
 - 生产默认 `not_connected`；测试通过 `new MockHealthDataProvider()` 后调用 `setState(...)` 验证各态渲染。
 
 ## 范围与复用
@@ -202,7 +245,7 @@ export function deriveHealthState(
 - 不接入蓝牙、硬件 SDK、数据库、认证、外部服务。
 - 不新增后端接口；不调用真实 `/api/v1/health-overview`（本轮 Provider 是 mock）。
 - 不新增医疗判断、诊断结论、虚构告警或未经批准的健康建议。
-- 不新增硬件控制按钮、不暴露状态切换入口到生产页面。
+- 不新增硬件控制按钮（不新增「连接硬件」「绑定设备」「重试」）；仅允许「导入模拟数据」/「清除模拟数据」两个演示态切换按钮。
 - 不安装、升级或删除依赖。
 
 ## 与既有契约的关系
