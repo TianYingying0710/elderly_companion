@@ -13,10 +13,17 @@ const navigator = createSecondaryNavigator({
   showToast: (options) => uni.showToast({ title: options.title, icon: options.icon }),
 })
 
-// 仅「使用帮助」与「关于银龄伴」两个静态页接入跳转，其余菜单项保持只读展示。
+// 仅「使用帮助」与「关于银龄伴」接入跳转；其余菜单项未规划目标页，统一提示，避免点击无响应。
 function openMenuItem(id: number) {
-  if (id === 5) navigator.open(GUARDIAN_SECONDARY_ROUTES.help)
-  if (id === 6) navigator.open(GUARDIAN_SECONDARY_ROUTES.about)
+  if (id === 5) {
+    navigator.open(GUARDIAN_SECONDARY_ROUTES.help)
+    return
+  }
+  if (id === 6) {
+    navigator.open(GUARDIAN_SECONDARY_ROUTES.about)
+    return
+  }
+  uni.showToast({ title: '功能建设中', icon: 'none' })
 }
 
 // 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
@@ -39,7 +46,7 @@ onShow(() => {
       </view>
     </view>
 
-    <!-- 功能列表：仅「使用帮助」「关于银龄伴」可点击，其余为只读展示 -->
+    <!-- 功能列表：「使用帮助」「关于银龄伴」跳转，其余点击提示「功能建设中」 -->
     <view class="menu">
       <view v-for="(item, idx) in menuItems" :key="item.id" class="menu-item" @tap="openMenuItem(item.id)">
         <view class="menu-row">
