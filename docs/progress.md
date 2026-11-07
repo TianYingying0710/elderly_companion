@@ -1,6 +1,16 @@
 # 开发进度
 
-更新日期：2026-11-03
+更新日期：2026-11-08
+
+## 2026-11-08：教学链路 · 视频上传与播放（code1 后端，已完成待提交）
+
+- **功能**：社区端可上传课程视频（mp4，≤200MB，分块落盘至 `code1-elder/backend/data/uploads/videos/`，已入 `.gitignore`）；可带视频创建课程（`POST /api/v1/courses`，动态课程与预置演示课程同构进目录）；老人端可通过 `video_url` 流式播放（FileResponse 支持 Range 拖动进度条）。
+- **契约扩展（显式报备）**：`CourseSummary.video_url: str | None = None`（预置演示课程为 null）；新增 `CourseVideoUpload`、`CreateCourseRequest` schema；新增 `POST /api/v1/course-videos`、`GET /api/v1/course-videos/{video_id}`；video_id 无效归为 422 `validation_failed`（不是 404）；课程 404 payload 为 `course_not_found`（上轮已报备）。
+- **依赖例外（用户已授权）**：安装 `python-multipart==0.0.33`——FastAPI 处理 multipart 文件上传的必需配套，此前功能仅传 JSON 未触及。
+- **验证**：elder backend 36 项全过（+8 视频契约测试）；变异验证（删 mp4 格式守卫 → 红 → 还原 → 绿）；真启动冒烟全链路通过（curl multipart 上传 → 带视频建课 → 目录 6 门 → 播放 HTTP 200 字节级一致 → 幽灵视频 404 video_not_found）；共享契约 3 项全过。
+- **冒烟工具备注**：PowerShell 5.1 的 `Invoke-RestMethod -InFile` 不发 multipart（`body.file missing`），须用 `curl.exe -F`；命令行内联中文 JSON 会因 GBK 编码乱码，须写 UTF-8（无 BOM）临时文件后 `--data-binary @file`。
+- **环境里程碑（2026-11-08）**：worktree 老人端/社区端 `node_modules` 已由用户以 `mklink /J`（cmd）创建 junction 指向主仓库补齐；两端 vitest 基线（20 项 / 80 项）全过，SOS 收尾与两端前端接入的开发条件已就绪。**Agent 自建 junction 因沙箱路径重定向产生死链，用户在 cmd 中创建则正常**——后续不要再由 Agent 建 junction。
+- **待办**：①社区端上传页 + 老人端课程/播放页前端接入；②SOS 收尾两步；③本切片后端改动未提交。
 
 > **⚠️ 工作目录漂移提醒（2026-11-03）**：本项目存在多个 git worktree，代码开发与微信开发者工具实际打开的不是同一目录，容易误判进度。
 > - 开发/提交位置：`E:\c2--\code-guardian-hardening`（worktree，分支 `feat-guardian-secondary-pages`，HEAD `012879e`）。
@@ -171,6 +181,23 @@
 - 分期口径：P1 约 40% / P2 约 30%（服务任务贡献）/ P3 约 30% / P4 0% / P5 0%
 - 演示可用度高于开发进度（约 40-50%）：三端可跑、导航完整、六态健康、服务任务录入、SOS 半程均可演示
 - 未计入项：微信开发者工具模拟器人工验证（趋势曲线、「功能建设中」toast）仍欠；真实数据阶段（数据库选型、部署）不在本清单内
+
+## SOS 求助链路 · 第一片（2026-11-08 完成）
+
+- code1 后端：`POST/GET /api/v1/sos-events`（创建/列表）+ `PATCH /{event_id}`（状态流转 pending→processing→resolved，仅前进）；进程内存储、重启即清（如实标注）；7 项契约测试，白名单测试同步
+- 监护人端：sosEvents 完整分层（types→api→mapper→provider，`VITE_SOS_MODE` mock|api 开关，默认 mock）；消息页合并置顶真实事件 + 失败 toast；detail 页 hex id 解析；21 项新测试，前端 140 项全绿、mp-weixin 构建同步
+- 遗留（见剩余链路 #1）：老人端触发接 api、社区端求助中心（卡 node_modules 决策）、E2 演练、跨端实时推送（当前 onShow 拉取）
+
+## 教学链路 · 后端先行（2026-11-08 完成）
+
+- code1 后端 courses/learning-records 从 501 占位转实现（契约 schema 未改动一字）：
+  - `GET /api/v1/courses` → 5 门虚构演示课程（适老场景：智能手机/防诈骗/视频通话/健步走/求助按钮），注释标注「演示数据」
+  - `GET /api/v1/courses/{id}` → CourseDetail（含 outline）；不存在 → 404 `course_not_found`（新增错误契约，responses 已声明并在报告中列出）
+  - `GET /api/v1/learning-records` → 列表（updated_at 倒序）；`PUT /{course_id}` → 校验课程存在（不存在 404）后 upsert 进度
+- 新增测试 9 项（课程 3 + 学习记录 6）；删除已过时的 501 断言测试（501 组现为空）；仓库加 reset() 供测试隔离
+- 验证：elder backend **28 项全过**（20→19−1+9=28，数字自洽）+ 共享契约 3 项全过；变异验证闭环（删课程存在守卫→红→还原→绿）
+- 遗留：社区端上传（C2）与老人端播放（A2）两个前端接入，依赖 node_modules 决策
+- 环境坑（冒烟发现）：`silver-companion-env` 的 editable 安装指向**主仓库** code1 路径——直接 `uvicorn` 启动会加载旧代码（courses 仍 501）；pytest 不受影响（走本地 src）。真启动服务须加 `PYTHONPATH=<worktree>/code1-elder/backend\src`，或择期重做 editable install（未动，避免越权改环境）
 
 ## 下一里程碑建议
 
