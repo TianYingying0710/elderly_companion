@@ -34,3 +34,7 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
+# Uploaded course videos (runtime files, never in git)
+code1-elder/backend/data/
+code1-elder/backend/src/data/
+

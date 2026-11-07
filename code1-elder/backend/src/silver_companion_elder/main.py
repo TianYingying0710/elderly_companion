@@ -8,12 +8,16 @@ from silver_companion_shared.contracts.health import HealthPayload
 from silver_companion_elder.api import api_router
 from silver_companion_elder.errors import (
     CapabilityNotImplementedError,
+    CourseNotFoundError,
     IllegalSosStatusTransitionError,
     SosEventNotFoundError,
+    VideoNotFoundError,
     capability_not_implemented_handler,
+    course_not_found_handler,
     illegal_sos_status_transition_handler,
     sos_event_not_found_handler,
     validation_error_handler,
+    video_not_found_handler,
 )
 
 load_dotenv()
@@ -27,6 +31,8 @@ def create_app() -> FastAPI:
     app.add_exception_handler(CapabilityNotImplementedError, capability_not_implemented_handler)
     app.add_exception_handler(SosEventNotFoundError, sos_event_not_found_handler)
     app.add_exception_handler(IllegalSosStatusTransitionError, illegal_sos_status_transition_handler)
+    app.add_exception_handler(CourseNotFoundError, course_not_found_handler)
+    app.add_exception_handler(VideoNotFoundError, video_not_found_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.include_router(api_router)
 
