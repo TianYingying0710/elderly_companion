@@ -6,11 +6,17 @@ import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
 import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
 import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { filterMessages, MESSAGE_FILTERS } from '../../domain/messages'
+import { createSosEventsProvider } from '../../data/sosEventsProvider'
 import { messages } from '../../mock/data'
-import type { MessageCategory, MessageFilter } from '../../types'
+import type { MessageCategory, MessageFilter, MessageItem } from '../../types'
+
+// SOS 事件 Provider：mock 模式返回空列表（消息中心维持演示现状）；
+// api 模式直查老人端后端，把真实求助事件合并进消息列表（SOS 置顶）。
+const sosProvider = createSosEventsProvider()
+const sosMessages = ref<MessageItem[]>([])
 
 const current = ref<MessageFilter>('全部')
-const filtered = computed(() => filterMessages(messages, current.value))
+const filtered = computed(() => filterMessages([...sosMessages.value, ...messages], current.value))
 
 // 二级页面统一走 navigateTo，由 navigator 内部拦截重复点击、失败时提示。
 const navigator = createSecondaryNavigator({
@@ -19,7 +25,7 @@ const navigator = createSecondaryNavigator({
   showToast: (options) => uni.showToast({ title: options.title, icon: options.icon }),
 })
 
-function openMessageDetail(id: number) {
+function openMessageDetail(id: number | string) {
   navigator.open(`${GUARDIAN_SECONDARY_ROUTES.messageDetail}?id=${id}`)
 }
 
@@ -37,10 +43,19 @@ const categoryBgs: Record<MessageCategory, string> = {
   系统消息: '#eef2f8',
 }
 
-// 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态
+// 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态；
+// 每次进入页面刷新 SOS 事件（api 模式直查老人端后端，失败提示且保留演示消息）
 onShow(() => {
   const page = getCurrentPages()[getCurrentPages().length - 1] as unknown as TabBarPage
   syncTabBar(page?.getTabBar?.())
+  sosProvider
+    .list()
+    .then((items) => {
+      sosMessages.value = items
+    })
+    .catch(() => {
+      uni.showToast({ title: '求助事件加载失败', icon: 'none' })
+    })
 })
 </script>
 

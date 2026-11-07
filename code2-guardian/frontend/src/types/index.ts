@@ -82,7 +82,8 @@ export interface AdviceItem {
 export type MessageCategory = '健康提醒' | '求助消息' | '社区通知' | '系统消息'
 
 export interface MessageItem {
-  id: number
+  /** 本地演示消息为数字 id；api 模式下的 SOS 事件用后端 hex id */
+  id: number | string
   category: MessageCategory
   title: string
   summary: string

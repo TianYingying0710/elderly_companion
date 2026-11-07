@@ -8,7 +8,11 @@ from silver_companion_shared.contracts.health import HealthPayload
 from silver_companion_elder.api import api_router
 from silver_companion_elder.errors import (
     CapabilityNotImplementedError,
+    IllegalSosStatusTransitionError,
+    SosEventNotFoundError,
     capability_not_implemented_handler,
+    illegal_sos_status_transition_handler,
+    sos_event_not_found_handler,
     validation_error_handler,
 )
 
@@ -21,6 +25,8 @@ def create_app() -> FastAPI:
     origins = [item.strip() for item in os.getenv("CORS_ORIGINS", default_origins).split(",") if item.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"], allow_headers=["*"])
     app.add_exception_handler(CapabilityNotImplementedError, capability_not_implemented_handler)
+    app.add_exception_handler(SosEventNotFoundError, sos_event_not_found_handler)
+    app.add_exception_handler(IllegalSosStatusTransitionError, illegal_sos_status_transition_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.include_router(api_router)
 

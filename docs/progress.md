@@ -135,6 +135,43 @@
 - RAG、向量库、老人记忆、数字画像、模型调用和设备接入实现。
 - 监护人端和社区端其余业务页面、正式 AppID 配置及发布流程（社区服务任务页面除外）。
 
+## SOS 求助链路第一片（2026-11-08，用户授权开发）
+
+- 授权说明：本片由用户在 2026-11-08 明确授权开发（P1 第一片「软件 SOS 求助全链路」，低耦合四原则方案），构成上文「当前阶段明确不做：求助流程」的用户级例外；其余禁令不变。
+- 架构：SOS 事件唯一来源为 code1-elder 后端（`/api/v1/sos-events`：创建/按老人查询/状态流转 pending→processing→resolved，仅前进），进程内存储、重启即清（预期，接口不变待持久化替换）。code2/code3 后端不实现事件模型、不做服务间调用；消费端前端经各自 api 层直查 code1。
+- 后端（code1-elder）：新增 `schemas/sos_events.py`、`repositories/sos_events.py`、`api/sos_events.py`，错误契约 `sos_event_not_found`(404) 与 `illegal_sos_status_transition`(409) 沿用统一 error payload。测试先行：`tests/test_sos_events_api.py` 7 项；`test_contract_routes.py` 白名单更新为「契约 501 + SOS 已实现」两分组；后端全量 20 项通过；状态机守卫变异验证变红→复绿。
+- 监护人端（code2-guardian）：消息中心接入真实 SOS 事件流。新增 `types/sosEvents.ts`（DTO 对齐后端契约）、`api/sosEvents.ts`（直查 :8001）、`mappers/sosEventMapper.ts`（事件→求助消息）、`data/sosEventsProvider.ts`（mock/api 工厂，`VITE_SOS_DATA_MODE`，默认 mock 维持演示现状）；`MessageItem.id` 放宽为 `number | string`（SOS 用后端 hex id）；消息页 onShow 拉取合并置顶、失败 toast 降级；message-detail 支持 hex id 经 provider 查详情。前端全量 24 文件 / 140 项通过、type-check exit 0、mp-weixin 构建成功并同步微信开发者工具产物目录（11 页齐全）；工厂变异验证变红→复绿。`.env.example` 增 `VITE_ELDER_API_BASE_URL`、`VITE_SOS_DATA_MODE`。
+- 本轮跳过（依赖缺失，见疑问清单）：老人端前端与社区端前端 `node_modules` 均未安装，红线禁止装依赖、npm 被 PATH 拦截，无法跑测试/构建，故步骤 2（老人端 SOS UI 接 api）与步骤 4（社区端求助中心接事件流）跳过未动。老人端 `useSos.ts` 已有完整演示态 UI（本地状态机、全部走 demo 模式），待依赖可用后仅需接 api 层。
+- 验证（2026-11-08 实测）：code1 后端 20 项（backend 目录运行，worktree 根运行会使禁改的 test_schemas.py 因相对路径 pyproject.toml 报 FileNotFoundError——非回归，勿从根目录跑）；code2 前端 140 项 + type-check exit 0。
+
+## 剩余链路与进度盘点（2026-11-08，用户要求记录）
+
+以设计文档模块编号（A 老人端 / B 监护人端 / C 社区端 / D 中枢 / E 验收）为准。✅完成 🟡半程 ❌未动。
+
+### 已完成/半程盘点
+- ✅ C3 社区服务任务（唯一 SQLite 例外，社区后端 80 项测试）
+- ✅ B1 健康画像六态展示 + 前后端联通（手环数据走「未接入」空态）
+- 🟡 A3/D6/E2 SOS 求助链路：code1 后端契约+状态机、监护人端消息中心接入已完成；**欠**：老人端触发接 api（UI 演示态已就绪）、社区端求助中心接入、端到端演练
+- 🟡 B3 消息中心：SOS 事件流已接（api 模式），其余消息类型维持演示
+- 🟡 B2 AI 建议：advice 二级页已有（mock 文案），生成链路未接
+- ✅ 三端框架/导航/tabBar、演示数据体系、错误契约、测试基建（监护人 140 项、社区 80 项、老人 20 项、code1 后端 20 项、code2 后端 8 项、共享契约 3 项）
+
+### 剩余链路清单（按依赖排序）
+1. **SOS 链路收尾**（A3 余下 + C4 + E2）：老人端 `useSos` 接 api 层（触发→POST /sos-events）、社区端求助中心接事件流、E2 端到端演练。前置：worktree 补齐老人端/社区端 node_modules（junction 或 npm ci，待用户定）。
+2. **教学链路**（A2 + C2 + code1 courses 契约）：社区端视频上传/分类 → code1 后端 courses/learning-records 从 501 转实现 → 老人端播放与学习记录。设计文档要求内容来自社区端契约。
+3. **聊天链路**（A1 + D2 + D7 mock）：老人端聊天 UI（骨架已有）接 D2 场景理解 mock；D7 定义 LLM/ASR/TTS 接口 + mock 实现，留真实 API 替换点。
+4. **知识库链路**（C1 + D3 mock）：社区端知识条目维护 → D3 RAG 检索 mock（不接向量库）。
+5. **画像链路**（B1 余下 + B2 + D4 mock）：五类画像展示（授权范围联动）→ D4 画像更新 mock → B2 AI 建议 mock 生成。
+6. **事件统一**（D6 余下）：SOS/求助/留言统一事件模型入口（SOS 已是第一个接入者）。
+7. **账号与授权**（P5：A4/A5/B4/D1）：绑定、共享范围、设置做实、身份校验；届时定演示模式或真实登录。放最后，当前全部「功能建设中」。
+8. **端到端验收**（E1 画像闭环 + E2 求助闭环）：贯穿各链路，最后统一演练。
+
+### 进度估算（粗粒度，按 22 个模块单元折算）
+- 整体开发进度：**约 20%**（C3 完成、A3/B1/B3/E2 各半程，D 层 0%、账号 0%）
+- 分期口径：P1 约 40% / P2 约 30%（服务任务贡献）/ P3 约 30% / P4 0% / P5 0%
+- 演示可用度高于开发进度（约 40-50%）：三端可跑、导航完整、六态健康、服务任务录入、SOS 半程均可演示
+- 未计入项：微信开发者工具模拟器人工验证（趋势曲线、「功能建设中」toast）仍欠；真实数据阶段（数据库选型、部署）不在本清单内
+
 ## 下一里程碑建议
 
 移动端空白框架已完成实际运行验证。下一里程碑建议先冻结当前框架基线，再评审三端页面清单、导航和无数据 UI；正式 AppID、发布、数据设计与数据来源仍须单独确认后开展。

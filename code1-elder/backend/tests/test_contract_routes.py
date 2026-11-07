@@ -47,13 +47,19 @@ def test_openapi_contains_only_the_approved_business_paths() -> None:
     schema = create_app().openapi()
     business_paths = {path for path in schema["paths"] if path.startswith("/api/v1")}
 
-    assert business_paths == {
+    contract_only_paths = {
         "/api/v1/courses",
         "/api/v1/courses/{course_id}",
         "/api/v1/learning-records",
         "/api/v1/learning-records/{course_id}",
     }
-    for path in business_paths:
+    implemented_paths = {
+        "/api/v1/sos-events",
+        "/api/v1/sos-events/{event_id}",
+    }
+    assert business_paths == contract_only_paths | implemented_paths
+    # 仅声明契约但未接业务的的才要求 501；已实现的 SOS 路由不在此列
+    for path in contract_only_paths:
         for operation in schema["paths"][path].values():
             assert "501" in operation["responses"]
 
