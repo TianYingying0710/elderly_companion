@@ -101,13 +101,15 @@ describe('profile menu wires help and about to their pages', () => {
     expect(PROFILE).toContain('@tap')
   })
 
-  it('only wires help and about menu items, leaving the rest read-only', () => {
-    // 只有 id 5（使用帮助）与 id 6（关于银龄伴）跳转，其余保持只读、不误挂跳转
+  it('wires only help and about, falling back to a planned-feature toast', () => {
+    // 只有 id 5（使用帮助）与 id 6（关于银龄伴）跳转；
+    // 其余菜单项无目标页，统一「功能建设中」提示，不误挂跳转
     expect(PROFILE).toContain('id === 5')
     expect(PROFILE).toContain('id === 6')
-    expect(PROFILE).not.toContain('id === 1')
-    expect(PROFILE).not.toContain('id === 2')
-    expect(PROFILE).not.toContain('id === 3')
-    expect(PROFILE).not.toContain('id === 4')
+    // 锁定具体 toast 调用语句，防止只匹配到注释文字而空转
+    expect(PROFILE).toContain("uni.showToast({ title: '功能建设中', icon: 'none' })")
+    for (const id of [1, 2, 3, 4]) {
+      expect(PROFILE, `菜单 id ${id} 不应误挂跳转`).not.toContain(`id === ${id}`)
+    }
   })
 })
