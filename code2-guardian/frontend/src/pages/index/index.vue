@@ -14,7 +14,7 @@ import {
 import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
 import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
 import { useHealthData } from '../../composables/useHealthData'
-import { MockHealthDataProvider } from '../../data/healthDataProvider'
+import { createHealthDataProvider } from '../../data/healthDataProvider'
 import {
   elderProfile,
   reminders,
@@ -25,7 +25,7 @@ const instance = getCurrentInstance()
 const statusBarHeight = uni.getSystemInfoSync().statusBarHeight ?? 0
 
 // 健康数据只通过 Provider 获取，不直接读 mock 的健康常量。
-const healthProvider = new MockHealthDataProvider()
+const healthProvider = createHealthDataProvider()
 const { snapshot: healthSnapshot } = useHealthData(healthProvider)
 
 const metricIcons: Record<string, string> = {

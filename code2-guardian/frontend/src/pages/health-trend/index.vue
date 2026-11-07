@@ -10,12 +10,12 @@ import {
 } from '../../domain/trendCanvas'
 import { summarizeTrend } from '../../domain/trendSummary'
 import { useHealthData } from '../../composables/useHealthData'
-import { MockHealthDataProvider } from '../../data/healthDataProvider'
+import { createHealthDataProvider } from '../../data/healthDataProvider'
 
 const instance = getCurrentInstance()
 
 // 健康数据只通过 Provider 获取，不直接读 mock 常量。
-const healthProvider = new MockHealthDataProvider()
+const healthProvider = createHealthDataProvider()
 const { snapshot: healthSnapshot } = useHealthData(healthProvider)
 
 const trend = computed(() => healthSnapshot.value?.trend ?? [])
