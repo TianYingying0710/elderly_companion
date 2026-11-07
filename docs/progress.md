@@ -10,6 +10,19 @@
 > - 建议：把开发者工具的项目路径直接改为 `E:\c2--\code-guardian-hardening\code2-guardian\frontend\dist\build\mp-weixin`，或一次性把 `code-guardian-hardening` 的 `src` 完整同步过去，消除双目录漂移。
 > - **已执行（方案一）**：已将 `code-guardian` 的 `project.private.config.json`（开发者工具本地私有配置）复制到 hardening 的 `dist\build\mp-weixin`，两边 `project.config.json` 核对一致（appid=touristappid）。**待用户在微信开发者工具里手动把导入路径改为 `E:\c2--\code-guardian-hardening\code2-guardian\frontend\dist\build\mp-weixin`**，之后每次重跑 `build:mp-weixin` 即自动生效，无需再手动同步旧目录。
 
+## 下一步开发方案（2026-11-07 拟定）
+
+**首选：监护人端健康数据前后端联通（2026-11-07 已实现）。**
+- 新增 `ApiHealthDataProvider`（`data/healthDataProvider.ts`）：调用后端 `/api/v1/health-overview/{elderId}` 契约，把 Model 派生为六态快照；后端 503（`health_data_source_unavailable`）原样抛出、由 `useHealthData` 映射为 `not_connected`，与设计一致。后端契约暂不含趋势序列，`trend` 恒为空。
+- 新增 `createHealthDataProvider(mode)` 工厂：`VITE_HEALTH_DATA_MODE=api` 用真实后端，未设置/`mock` 保持本地演示六态，默认行为不变；`.env.example` 补充说明。首页与健康趋势页改用工厂，仍只依赖 Provider 接口，页面与状态机零改动。
+- 演示标识：`DEMO_ELDER_ID='elder-001'` 仅为契约调用的演示标识，不代表真实老人；不新增数据库、不接硬件、后端 Provider 保持如实「不可用」。
+- 验证：前端 `npm test` 20 文件 / 119 项全过（新增 ApiHealthDataProvider 3 项 + 工厂 2 项）、`type-check` exit 0、`build:mp-weixin` DONE；后端契约 8 项全过；产物已同步开发者工具监听目录。
+- 人工验证路径：`.env.local` 设 `VITE_HEALTH_DATA_MODE=api` 并启动监护人后端，重跑 `build:mp-weixin`，模拟器首页应显示「尚未接入硬件」空态。
+
+**备选：老人档案页字段补充（已并入四期开发清单的 P3「监护人端深化」，随画像页统一实施）。**
+- 现状仅 4 字段（姓名/年龄/关系/绑定状态）。建议补充的虚构演示字段（页面保持「演示数据」标识，不涉身份证号/真实联系方式/真实住址）：性别、年龄段、居住片区、生活起居标签（如早睡早起）、紧急联系人（虚构姓名 + 关系）。
+- 字段清单确认前不动代码；确认后一轮即可完成（mock 数据 + 档案页展示 + 测试契约同步）。
+
 2026-11-07：监护人端死链盘点收尾（已实现）。全量盘点 12 个页面的可点入口：advice 4 卡片（→ advice-detail）、消息列表（→ message-detail）、首页 3 入口（→ 三个二级页）此前均已接通；唯一剩余死链为「我的」页菜单 id 1–4（老人管理/家庭成员/提醒设置/消息通知设置），绑定了 `@tap` 但点击无任何响应。处置：保留绑定，点击统一提示「功能建设中」（与首页既有占位提示模式一致），不新增页面、不新增路由、不改后端。测试契约同步改写：`profile-secondary.spec.ts` 锁定完整 toast 调用语句；变异验证确认非空转（删 toast 调用 → 1 failed，还原 → 13 passed；初版断言只匹配到注释文字，已修正）。`npm test` 20 文件 / 114 项、`type-check` exit 0、`build:mp-weixin` DONE；产物已同步到开发者工具监听目录，编译产物 `pages/profile/index.js` 确认含 toast 兜底逻辑。
 
 2026-11-03：监护人端健康展示状态化（代码已在 `code-guardian-hardening` worktree 实现并提交 `012879e`，但**尚未同步到开发者工具实际打开的 `code-guardian` worktree，也未合并 main**；在开发者工具里看到的仍是旧基线，不可据此宣称已交付）。把首页「健康概况 + 近 7 天趋势」与「健康趋势详情」从「直接读取 mock 常量」改为「通过可替换 HealthDataProvider 驱动的六态状态化界面」，面向未来硬件接入的真实使用场景。六态为：`not_connected`（未接入硬件，默认）、`connecting`（连接中，由 useHealthData 的 loading 派生）、`no_data`（已连接暂无数据）、`has_data`（有数据，标注演示数据）、`stale`（数据过期，超过 24 小时）、`error`（数据异常）。新增 `domain/healthDataState.ts`（`deriveHealthState` 纯函数，六态优先级 + 24h 过期阈值可注入 + 非数据态清空 metrics/trend）、`data/healthDataProvider.ts`（`HealthDataProvider` 接口 + `MockHealthDataProvider`，`setState` 仅开发/测试期，不暴露生产）、`composables/useHealthData.ts`（loading 编排 + 错误映射：`health_data_source_unavailable` → not_connected，其余 → error）。页面只依赖 Provider，不直接读 mock 健康常量；`isDemo` 由 Provider 标记，仅 has_data/stale 为 true。未新增后端接口、未接真实 API、未新增页面、未新增硬件控制按钮、未装依赖。`npm test` 20 文件 / 114 项、`type-check` exit 0、`build:mp-weixin` DONE（均在 `code-guardian-hardening` worktree 实测；`code-guardian` worktree 基线为 3 文件 / 11 项，尚无六态代码）。真实硬件未接入，默认显示「未接入硬件」空态。分支 `feat-guardian-secondary-pages`，未推送未合并。**遗留待办：需将六态改动同步/合并到开发者工具使用的 `code-guardian` 目录并重新验收，才能视为交付完成。**

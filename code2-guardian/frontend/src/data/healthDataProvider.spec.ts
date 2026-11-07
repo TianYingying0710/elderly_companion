@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import { ApiError } from '../api/client'
-import { MockHealthDataProvider } from './healthDataProvider'
+import {
+  ApiHealthDataProvider,
+  MockHealthDataProvider,
+  createHealthDataProvider,
+  DEMO_ELDER_ID,
+} from './healthDataProvider'
 import type { HealthDisplayState } from '../domain/healthDataState'
+import type { HealthOverviewModel } from '../types/healthData'
 
 const MOCKABLE_STATES: HealthDisplayState[] = ['not_connected', 'no_data', 'has_data', 'stale', 'error']
 
@@ -66,5 +72,57 @@ describe('MockHealthDataProvider', () => {
     const provider = new MockHealthDataProvider()
     // setState 不接受 connecting；类型层面 HealthDisplayState 含 connecting 但 provider 只处理可 mock 的态
     expect(MOCKABLE_STATES).not.toContain('connecting')
+  })
+})
+
+const baseModel = (overrides: Partial<HealthOverviewModel> = {}): HealthOverviewModel => ({
+  elderId: DEMO_ELDER_ID,
+  metrics: [
+    { key: 'heartRate', label: '静息心率', value: '68', unit: '次/分', badge: '' },
+  ],
+  updatedAt: new Date().toISOString(),
+  sourceStatus: 'available',
+  ...overrides,
+})
+
+describe('ApiHealthDataProvider', () => {
+  it('derives has_data from a successful backend model with empty trend', async () => {
+    const fetchOverview = async (elderId: string): Promise<HealthOverviewModel> => {
+      expect(elderId).toBe(DEMO_ELDER_ID)
+      return baseModel()
+    }
+    const snapshot = await new ApiHealthDataProvider(fetchOverview).getOverview()
+    expect(snapshot.state).toBe('has_data')
+    expect(snapshot.metrics.length).toBeGreaterThan(0)
+    expect(snapshot.trend).toEqual([])
+    expect(snapshot.sourceStatus).toBe('available')
+  })
+
+  it('derives no_data from available source with empty metrics', async () => {
+    const snapshot = await new ApiHealthDataProvider(async () => baseModel({ metrics: [] })).getOverview()
+    expect(snapshot.state).toBe('no_data')
+    expect(snapshot.metrics).toEqual([])
+  })
+
+  it('propagates 503 ApiError with health_data_source_unavailable code untouched', async () => {
+    const fetchOverview = async (): Promise<HealthOverviewModel> => {
+      throw new ApiError('健康数据源尚未接入', 503, 'health_data_source_unavailable')
+    }
+    // ApiError 原样抛出，由 useHealthData 映射为 not_connected
+    await expect(new ApiHealthDataProvider(fetchOverview).getOverview()).rejects.toMatchObject({
+      code: 'health_data_source_unavailable',
+      status: 503,
+    })
+  })
+})
+
+describe('createHealthDataProvider', () => {
+  it('defaults to mock when mode is undefined or mock', () => {
+    expect(createHealthDataProvider(undefined)).toBeInstanceOf(MockHealthDataProvider)
+    expect(createHealthDataProvider('mock')).toBeInstanceOf(MockHealthDataProvider)
+  })
+
+  it('selects the api provider only for mode=api', () => {
+    expect(createHealthDataProvider('api')).toBeInstanceOf(ApiHealthDataProvider)
   })
 })
