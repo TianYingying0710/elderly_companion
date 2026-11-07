@@ -2,12 +2,22 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
+import { createSosEventsProvider } from '../../data/sosEventsProvider'
 import { messages } from '../../mock/data'
-import type { MessageCategory } from '../../types'
+import type { MessageCategory, MessageItem } from '../../types'
 
+// 数字 id 走本地演示消息；SOS 事件 id 为 32 位 hex（后端 uuid4().hex），直查老人端后端
+const SOS_EVENT_ID_PATTERN = /^[0-9a-f]{32}$/
+
+const sosProvider = createSosEventsProvider()
 const messageId = ref<number | null>(null)
+const sosEventId = ref<string | null>(null)
+const sosMessage = ref<MessageItem | null>(null)
 
-const message = computed(() => messages.find((m) => m.id === messageId.value) ?? null)
+const message = computed(() => {
+  if (sosEventId.value !== null) return sosMessage.value
+  return messages.find((m) => m.id === messageId.value) ?? null
+})
 
 const categoryIcons: Record<MessageCategory, string> = {
   健康提醒: ICONS.heartRed,
@@ -24,7 +34,20 @@ const categoryBgs: Record<MessageCategory, string> = {
 }
 
 onLoad((options) => {
-  const id = Number(options?.id)
+  const raw = options?.id ?? ''
+  if (SOS_EVENT_ID_PATTERN.test(raw)) {
+    sosEventId.value = raw
+    sosProvider
+      .findById(raw)
+      .then((item) => {
+        sosMessage.value = item
+      })
+      .catch(() => {
+        uni.showToast({ title: '求助事件加载失败', icon: 'none' })
+      })
+    return
+  }
+  const id = Number(raw)
   messageId.value = Number.isInteger(id) && id > 0 ? id : null
 })
 </script>
