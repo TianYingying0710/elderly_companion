@@ -1,13 +1,28 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import AppToast from '../../components/AppToast.vue'
 import BottomSheet from '../../components/BottomSheet.vue'
 import PageHeader from '../../components/PageHeader.vue'
 import ScreenIdentity from '../../components/ScreenIdentity.vue'
 import { useToast } from '../../composables/useToast'
+import { useSosEvents } from '../../composables/useSosEvents'
 import { RESCUE_STEPS, flowIndex, isTerminal, nextStatus, requiresResult, stamp } from '../../domain/rescueFlow'
 import { createIncidents, createSimIncident } from '../../mock/community'
 import type { RescueIncident } from '../../types/community'
+import type { SosEventView } from '../../types/sosEvents'
+
+const sosStore = useSosEvents()
+const isApiMode = sosStore.mode === 'api'
+const openApiEvent = ref<SosEventView | null>(null)
+
+onShow(() => {
+  if (isApiMode) void sosStore.refresh()
+})
+
+function openApiDetail(id: string) {
+  openApiEvent.value = sosStore.events.value.find((event) => event.id === id) ?? null
+}
 
 const GUARDIAN_LABELS = ['已通知', '已查看', '已联系老人']
 
@@ -113,9 +128,37 @@ function simulate() {
       </template>
     </PageHeader>
 
-    <view class="demo-banner">演示数据：本页老人信息与事件均为虚构示例，仅用于界面演示</view>
+    <view class="demo-banner">
+      {{ isApiMode
+        ? '演示环境：实时 SOS 事件来自本地演示后端（elder-001），非真实报警'
+        : '演示数据：本页老人信息与事件均为虚构示例，仅用于界面演示' }}
+    </view>
 
-    <view class="rescue-list">
+    <view v-if="sosStore.errorMessage.value" class="api-error">加载失败：{{ sosStore.errorMessage.value }}</view>
+
+    <view v-if="isApiMode" class="rescue-list">
+      <view
+        v-for="event in sosStore.events.value"
+        :key="event.id"
+        class="rescue-card"
+        @tap="openApiDetail(event.id)"
+      >
+        <view class="card-top">
+          <view class="tag tag-red">SOS 求助</view>
+          <view class="tag" :class="`tag-${event.statusKind}`">{{ event.statusLabel }}</view>
+        </view>
+        <view class="card-name">{{ event.elderId }}</view>
+        <view class="info-line">
+          <view class="info-icon">◷</view>
+          <view class="info-text">{{ event.time }} · 软件 SOS</view>
+        </view>
+      </view>
+      <view v-if="!sosStore.loading.value && sosStore.events.value.length === 0" class="api-empty">
+        暂无 SOS 事件
+      </view>
+    </view>
+
+    <view v-else class="rescue-list">
       <view v-for="item in incidents" :key="item.id" class="rescue-card" @tap="openDetail(item.id)">
         <view class="card-top">
           <view class="tag tag-red">{{ item.type }}</view>
@@ -197,6 +240,21 @@ function simulate() {
       />
 
       <view class="accept" @tap="advance">{{ actionLabel }}</view>
+    </template>
+  </BottomSheet>
+
+  <BottomSheet :visible="Boolean(openApiEvent)" @close="openApiEvent = null">
+    <template v-if="openApiEvent">
+      <view class="incident-heading">
+        <view class="sheet-title">SOS 事件详情</view>
+        <view class="tag" :class="`tag-${openApiEvent.statusKind}`">{{ openApiEvent.statusLabel }}</view>
+      </view>
+      <view class="incident-summary">
+        <view class="incident-name">{{ openApiEvent.elderId }}</view>
+        <view class="meta">{{ openApiEvent.time }} · 软件 SOS · {{ openApiEvent.id }}</view>
+        <view v-if="openApiEvent.note" class="reason">{{ openApiEvent.note }}</view>
+      </view>
+      <view class="api-note">状态流转在老人端后端统一处理，本页只读展示</view>
     </template>
   </BottomSheet>
 
@@ -543,5 +601,27 @@ function simulate() {
   background: #4968a9;
   font-size: 28rpx;
   font-weight: 800;
+}
+
+.api-error {
+  margin-bottom: 24rpx;
+  padding: 18rpx 24rpx;
+  border-radius: 16rpx;
+  color: #b42318;
+  background: #fee4e2;
+  font-size: 21rpx;
+}
+
+.api-empty {
+  padding: 40rpx 0;
+  text-align: center;
+  color: #8a94a5;
+  font-size: 23rpx;
+}
+
+.api-note {
+  color: #8a94a5;
+  font-size: 21rpx;
+  line-height: 1.5;
 }
 </style>

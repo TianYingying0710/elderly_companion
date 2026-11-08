@@ -203,3 +203,21 @@
 
 移动端空白框架已完成实际运行验证。下一里程碑建议先冻结当前框架基线，再评审三端页面清单、导航和无数据 UI；正式 AppID、发布、数据设计与数据来源仍须单独确认后开展。
 
+
+## SOS 求助链路收尾（第 1 步完成，2026-11-08）
+
+三步计划之第 1 步（SOS 收尾）完成，改动均未提交：
+
+### 1a 社区端 rescue 页接真实事件流
+- 新增 types/sosEvents.ts、api/sosEvents.ts（直查 code1 GET /api/v1/sos-events?elder_id=，DTO 与 code2 的 api/sosEvents.ts 同契约定式）、mappers/sosEventMapper.ts（英文状态→中文标签，未知状态兜底）、data/sosProvider.ts（mock/api 工厂，VITE_SOS_DATA_MODE，默认 mock）、composables/useSosEvents.ts
+- pages/rescue/index.vue：mock 模式行为一字未变；api 模式列表渲染真实事件（时间倒序）、详情只读（含事件 id 与 note），无流转按钮（状态流转只在 code1）；banner 按 mode 区分文案且保留演示标识
+- 测试：社区端 88 项全过（基线 80 + mapper/provider 8 项）；mapper 变异验证红→还原→绿；vue-tsc 0
+
+### 1b 老人端 SOS 触发接 api
+- 新增 data/sosProvider.ts（VITE_SOS_DATA_MODE/VITE_ELDER_API_BASE_URL，默认 mock）；.env.example 补两变量说明
+- composables/useSos.ts：mock 模式行为一字未变；api 模式 startHelp 调 POST /api/v1/sos-events（elder-001），成功→时间线记「SOS 已上报（事件 id）」、标题「本次软件 SOS 求助（演示）」；失败→feedback 报错、不建记录；api 模式下 progress/cancelHelp 直接禁用（模拟流转与真实事件矛盾）
+- 测试：老人端 29 项全过（基线 20 + useSos 9 项，覆盖 api 成功/失败/禁用流转）；变异验证：删 feedback 赋值→红→还原→绿（首个变异 sos=null 重置为等价变异不红，已说明）；vue-tsc 0
+
+### 回归
+- code4-shared 契约测试 3 项全过
+- 人工验证欠账：趋势曲线滑动、功能建设中 toast、SOS 双端联调观感（api 模式两小程序同机联调）
