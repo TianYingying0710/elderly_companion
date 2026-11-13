@@ -1,6 +1,8 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from silver_companion_elder.main import create_app
+from silver_companion_elder.repositories.courses import get_course_repository
 
 client = TestClient(create_app())
 
@@ -11,7 +13,33 @@ COURSE_NOT_FOUND = {
     }
 }
 
-SUMMARY_FIELDS = {"id", "title", "category", "description", "duration_seconds", "video_url"}
+SUMMARY_FIELDS = {
+    "id",
+    "title",
+    "category",
+    "description",
+    "duration_seconds",
+    "video_url",
+    "status",
+    "editable",
+}
+
+
+@pytest.fixture(autouse=True)
+def fresh_catalog(monkeypatch):
+    monkeypatch.delenv("ELDER_DATABASE_PATH", raising=False)
+    get_course_repository.cache_clear()
+    yield
+    get_course_repository.cache_clear()
+
+
+def test_preset_courses_are_published_and_not_editable() -> None:
+    body = client.get("/api/v1/courses").json()
+
+    assert body
+    for course in body:
+        assert course["status"] == "published"
+        assert course["editable"] is False
 
 
 def test_list_courses_returns_demo_catalog_with_contract_fields() -> None:
