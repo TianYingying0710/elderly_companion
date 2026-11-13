@@ -2,6 +2,12 @@
 
 更新日期：2026-11-14
 
+## 2026-11-14：监护人端 SOS 自动刷新（前端切片，已提交）
+
+- **功能**：消息中心页在可见期间每 30 秒轮询一次 SOS 事件（`domain/sosAutoRefresh.ts`，定时器可注入、纯函数可测），`onHide` 立即停止、`onShow` 恢复；轮询发现新事件（按 id 差集，首次加载不提示）时页面顶部出现「有 N 条新的求助消息」提示条（点击「知道了」清除，不弹窗打扰）。轮询拉取失败静默保留旧列表（首次加载失败仍走既有 toast），避免 30 秒一次的提示轰炸。
+- **边界**：零后端改动、零契约改动；mock 模式 Provider 返回空列表，行为与现状完全一致；无 WebSocket/推送通道，轮询是当前架构下的兜底方案。
+- **验证**：`npm test` 21 文件 / 146 项全过（新增 sosAutoRefresh.spec.ts 5 项：启动/停止、不叠加定时器、首载不提示+新 id 通知、失败静默、手动 refresh；sos-messages.spec.ts +1 源码契约）；`type-check` exit 0；`build:mp-weixin` DONE。
+
 ## 2026-11-14：code1 持久化收尾——课程/视频登记/学习记录 SQLite（已提交）
 
 - **功能**：设置 `ELDER_DATABASE_PATH` 后，课程目录、视频登记（video_id → 磁盘路径）、学习记录全部落 SQLite（三张表同库，仅 `CREATE TABLE IF NOT EXISTS`，无 seed，与 SOS 仓库同模式）；未设置时保持进程内存存储，默认行为不变。**预置演示课程不落库**：始终由代码提供，读取时与库内动态课程按「预置在前、动态按插入序」合并返回，从机制上规避 seed。API 契约 payload 零改动，两端前端零改动。视频文件本体仍在 `data/uploads/videos/`（此前已落盘，本轮补的是元数据）。

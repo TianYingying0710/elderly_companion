@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import { ICONS } from '../../assets/icons'
 import { GUARDIAN_SECONDARY_ROUTES } from '../../domain/routes'
 import { createSecondaryNavigator } from '../../domain/secondaryNavigation'
+import { createSosPolling } from '../../domain/sosAutoRefresh'
 import { syncTabBar, type TabBarPage } from '../../domain/tabBarSync'
 import { filterMessages, MESSAGE_FILTERS } from '../../domain/messages'
 import { createSosEventsProvider } from '../../data/sosEventsProvider'
@@ -14,9 +15,22 @@ import type { MessageCategory, MessageFilter, MessageItem } from '../../types'
 // api 模式直查老人端后端，把真实求助事件合并进消息列表（SOS 置顶）。
 const sosProvider = createSosEventsProvider()
 const sosMessages = ref<MessageItem[]>([])
+// 轮询发现的新事件数量（首次加载不提示），点击「知道了」清除
+const newSosCount = ref(0)
 
 const current = ref<MessageFilter>('全部')
 const filtered = computed(() => filterMessages([...sosMessages.value, ...messages], current.value))
+
+// 页面可见期间每 30 秒轮询一次 SOS 事件（无实时推送前提下的兜底），离开页面即停
+const sosPolling = createSosPolling({
+  fetch: () => sosProvider.list(),
+  apply: (items) => {
+    sosMessages.value = items
+  },
+  notifyNew: (count) => {
+    newSosCount.value = count
+  },
+})
 
 // 二级页面统一走 navigateTo，由 navigator 内部拦截重复点击、失败时提示。
 const navigator = createSecondaryNavigator({
@@ -44,7 +58,7 @@ const categoryBgs: Record<MessageCategory, string> = {
 }
 
 // 同步底部自定义 tabBar 高亮：原生组件不随页面切换刷新选中态；
-// 每次进入页面刷新 SOS 事件（api 模式直查老人端后端，失败提示且保留演示消息）
+// 每次进入页面刷新 SOS 事件并恢复轮询（api 模式直查老人端后端，失败提示且保留演示消息）
 onShow(() => {
   const page = getCurrentPages()[getCurrentPages().length - 1] as unknown as TabBarPage
   syncTabBar(page?.getTabBar?.())
@@ -56,11 +70,26 @@ onShow(() => {
     .catch(() => {
       uni.showToast({ title: '求助事件加载失败', icon: 'none' })
     })
+  sosPolling.onShow()
 })
+
+onHide(() => {
+  sosPolling.onHide()
+})
+
+function dismissNewSos() {
+  newSosCount.value = 0
+}
 </script>
 
 <template>
   <view class="page">
+    <!-- 新求助提示条：轮询发现新事件时出现，不弹窗打扰 -->
+    <view v-if="newSosCount > 0" class="sos-banner" @tap="dismissNewSos">
+      <text class="sos-banner-text">有 {{ newSosCount }} 条新的求助消息</text>
+      <text class="sos-banner-action">知道了</text>
+    </view>
+
     <!-- 筛选胶囊 -->
     <scroll-view class="chips" scroll-x :show-scrollbar="false">
       <view class="chips-row">
@@ -102,6 +131,26 @@ onShow(() => {
   background: #f0f4fa;
   padding: 24rpx 0 160rpx;
   box-sizing: border-box;
+}
+.sos-banner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background: #fdecec;
+  border: 2rpx solid #ef4444;
+  border-radius: 16rpx;
+  padding: 20rpx 28rpx;
+  margin: 0 32rpx;
+}
+.sos-banner-text {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.sos-banner-action {
+  font-size: 26rpx;
+  color: #6b7280;
 }
 .chips {
   width: 100%;

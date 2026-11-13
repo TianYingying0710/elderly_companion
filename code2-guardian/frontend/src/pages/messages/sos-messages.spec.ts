@@ -47,4 +47,22 @@ describe('messages page consumes the sos events provider (low-coupling contract)
     expect(filterMessages([...sosItems, ...messages], '求助消息')[0]).toBe(sosItems[0])
     expect(filterMessages([...sosItems, ...messages], '全部')[0]).toBe(sosItems[0])
   })
+
+  it('auto refresh: page polls while visible, stops on hide, banners new events', () => {
+    expect(pageSource.list).toContain('createSosPolling')
+    expect(pageSource.list).toContain('sosPolling.onShow()')
+    expect(pageSource.list).toContain('onHide(() => {')
+    expect(pageSource.list).toContain('sosPolling.onHide()')
+    expect(pageSource.list).toContain('有 {{ newSosCount }} 条新的求助消息')
+    expect(pageSource.list).toContain('dismissNewSos')
+
+    const pollingSource = readFileSync(
+      resolve(__dirname, '../../domain/sosAutoRefresh.ts'),
+      'utf8',
+    )
+    expect(pollingSource).toContain('intervalMs ?? 30_000')
+    expect(pollingSource).toContain('timerHandle === null')
+    expect(pollingSource).toContain('options.notifyNew(fresh.length)')
+    expect(pollingSource).toContain('catch(() => {})')
+  })
 })
