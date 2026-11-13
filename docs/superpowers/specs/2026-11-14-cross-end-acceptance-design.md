@@ -75,6 +75,8 @@ python scripts/acceptance/run_acceptance.py --python <python.exe> --root <repo-r
 & $Python (Join-Path $root 'scripts\acceptance\run_acceptance.py') --python $Python --root $root
 ```
 
+入口不会只信任自测的退出码：它捕获 unittest 输出，缺少 `Ran N tests` 摘要（例如收集到 0 个用例）或最后一行不是 `OK` 时同样退出码 1，且不启动编排器；不硬编码用例条数。
+
 ### 5.1 模块边界与依赖方向
 
 ```text
@@ -174,11 +176,17 @@ SERVICE_SPECS = [
 
 | 步骤 | 服务 | 请求 | 期望 |
 | --- | --- | --- | --- |
-| G01 | 仓库 | 启动前扫描 `code*/backend` 下的 `*.db` | 记录基线；运行结束后不得出现新增文件 |
+| G01 | 仓库 | 启动前扫描 `code*/backend` 下的 `*.db` | 记录基线（路径 + `(size, mtime_ns)`）；运行结束后不得出现新增文件，既有文件也不得被改动 |
 | S01 | elder | `GET /health` | 200，`status=ok` |
 | S02 | elder | `GET /api/v1/courses` | 200，JSON 数组；每项含 `id/title/category/duration_seconds`（不绑定预置课程） |
 | S03 | elder | `POST /api/v1/courses` | 201，返回新 `course-*` id，标题/大纲一致 |
 | S04 | elder | `PUT /api/v1/learning-records/{course_id}` `{"progress_percent":42}` | 200，`progress_percent=42` |
+| S04a | elder | `POST /api/v1/courses/{course_id}/publication` `{"status":"unpublished"}` | 200，`status=unpublished` |
+| S04b | elder | `GET /api/v1/courses` | 200，不含 S03 课程 |
+| S04c | elder | `GET /api/v1/courses?include_unpublished=true` | 200，含且仅含 1 条 S03 课程，`status=unpublished`、`editable=true` |
+| S04d | elder | `GET /api/v1/courses/{course_id}` | 404，`error.code=course_not_found` |
+| S04e | elder | 再次 `POST .../publication` `{"status":"unpublished"}` | 409，`error.code=illegal_course_publication` |
+| S04f | elder | `POST /api/v1/courses/acceptance-ghost/publication` `{"status":"unpublished"}` | 404，`error.code=course_not_found` |
 | S05 | elder | `POST /api/v1/sos-events` `{"elder_id":"<run-elder-id>","note":"自动化验收求助"}` | 201，`status=pending`，note 一致 |
 | S06 | elder | `GET /api/v1/sos-events?elder_id=<run-elder-id>` | 200，包含 S05 事件 |
 | S07 | elder | `PATCH /api/v1/sos-events/{id}` `{"status":"processing"}` | 200，`status=processing` |
@@ -192,12 +200,19 @@ SERVICE_SPECS = [
 | S15 | community | `POST /api/v1/service-tasks/{id}/complete` `{"note":"自动化验收服务记录"}` | 200，`status=completed`，note 一致 |
 | S16 | community | 再次 `POST .../complete` | 409（非法流转） |
 | S17 | elder 重启 | `GET /api/v1/sos-events?elder_id=<run-elder-id>` | S05 事件仍为 `resolved` |
-| S18 | elder 重启 | `GET /api/v1/courses` | 仍包含 S03 新建课程 |
+| S18 | elder 重启 | `GET /api/v1/courses?include_unpublished=true` | S03 课程仍为 1 条且 `status=unpublished` |
+| S18a | elder 重启 | `GET /api/v1/courses` | 200，不含 S03 课程 |
+| S18b | elder 重启 | `GET /api/v1/courses/{course_id}` | 404，`error.code=course_not_found` |
+| S18c | elder 重启 | `POST .../publication` `{"status":"published"}` | 200，`status=published` |
+| S18d | elder 重启 | `GET /api/v1/courses` | 200，重新包含 S03 课程 |
+| S18e | elder 重启 | `GET /api/v1/courses/{course_id}` | 200，`status=published`、`editable=true` |
 | S19 | elder 重启 | `GET /api/v1/learning-records` | S03 课程进度仍为 42 |
 | S20 | community 重启 | `GET /api/v1/service-tasks/{id}` | 仍为 `completed` 且 note 一致 |
-| G02 | 仓库/临时目录 | 扫描临时目录与 `code*/backend` | 三个临时库均存在且非空；仓库内无新增 `*.db` |
+| G02 | 仓库/临时目录 | 扫描临时目录与 `code*/backend` | 三个临时库均存在且非空；仓库内无新增 `*.db`；既有 `*.db` 的 `(size, mtime_ns)` 未变化 |
 
-数据全部带本次运行的唯一 `run-id`（`acceptance-<hex>`）：`elder_id`、课程标题、服务任务标题与备注都不依赖演示预置内容，跨次运行也不会互相识别。G01/G02 是隔离守护步骤，不是业务步骤，失败同样退出码 1。总计 22 项检查。
+数据全部带本次运行的唯一 `run-id`（`acceptance-<hex>`）：`elder_id`、课程标题、服务任务标题与备注都不依赖演示预置内容，跨次运行也不会互相识别。G01/G02 是隔离守护步骤，不是业务步骤，失败同样退出码 1。总计 33 项检查。
+
+S04a–S04f 与 S18a–S18e 使用 S03 创建的动态课程，不读取预置课程 id：下架、隐藏、重复下架拒绝（`409 illegal_course_publication`）都在同一门课程上完成，重启后先证明下架状态持久，再重新发布并确认目录与详情恢复。S19 继续验证学习记录在下架与重启后仍为 42。编排器在汇总前显式核对检查数（`EXPECTED_CHECKS = 33`），数量不符即退出码 1，且不打印 `ACCEPTANCE PASS`。
 
 ## 8. 失败与清理语义
 
@@ -223,7 +238,7 @@ SERVICE_SPECS = [
 
 既有 `scripts/tests/test-verify-framework.ps1` 完全不受影响（`verify-framework.ps1` 未修改）。
 
-`scripts/tests/test-verify-acceptance.ps1` 新增接线测试：用假 Python 记录命令行参数，确认 `verify-acceptance.ps1` 以仓库根为 `--root`、把解析后的 Python 以 `--python` 传入。
+`scripts/tests/test-verify-acceptance.ps1` 新增接线测试：用假 Python 记录命令行参数，确认 `verify-acceptance.ps1` 以仓库根为 `--root`、把解析后的 Python 以 `--python` 传入；同时覆盖失败路径：自测失败时不调用编排器、自测缺少 `Ran N tests` 摘要时失败、编排器非零退出码原样透传。
 
 ### CI 集成（仓库当前无 CI 配置）
 
@@ -252,7 +267,7 @@ CI 中把两条命令作为同一 job 的两个步骤，并把该 job 设为分�
    - `request_json()` 对 200/201/409/503 与非 JSON 响应给出可读结果；
    - `StepFailure` 的格式化包含步骤名、URL、期望/实际状态。
 2. 实现最小逻辑使自测通过。
-3. 以 `scripts/verify-acceptance.ps1` 的真实运行作为集成验收：22 项检查全部 PASS。
+3. 以 `scripts/verify-acceptance.ps1` 的真实运行作为集成验收：33 项检查全部 PASS。
 4. 故障路径人工确认一次：临时改错一个期望（或占用/杀进程）应得到明确失败与退出码 1，然后还原。
 
 `scenarios.py` 不写 mock 单测：它的价值就是验证真实 HTTP 行为，mock 会复制一遍业务实现、制造耦合；由完整运行覆盖。

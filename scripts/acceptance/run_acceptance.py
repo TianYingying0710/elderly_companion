@@ -57,6 +57,8 @@ ALL_DATABASE_FILES: dict[str, str] = {}
 for _spec in SERVICE_SPECS:
     ALL_DATABASE_FILES.update(dict(_spec.databases))
 
+EXPECTED_CHECKS = 33
+
 
 def _spec(name: str) -> ServiceSpec:
     return next(spec for spec in SERVICE_SPECS if spec.name == name)
@@ -83,10 +85,27 @@ def _start(
     )
 
 
+def _database_signature(path: Path) -> tuple[int, int]:
+    """仓库内既有数据库的轻量指纹：大小与纳秒级修改时间。"""
+    try:
+        info = path.stat()
+    except OSError:
+        # 基线里存在、之后消失也算变化，用哨兵值表达。
+        return (-1, -1)
+    return (info.st_size, info.st_mtime_ns)
+
+
+def _repo_database_baseline(root: Path) -> dict[Path, tuple[int, int]]:
+    return {
+        relative: _database_signature(root / relative)
+        for relative in support.snapshot_repo_databases(root)
+    }
+
+
 def _check_isolation(
     root: Path,
     database_paths: Mapping[str, Path],
-    baseline: set[Path],
+    baseline: Mapping[Path, tuple[int, int]],
     reporter: support.Reporter,
 ) -> None:
     for env_name, path in database_paths.items():
@@ -94,12 +113,23 @@ def _check_isolation(
             raise AssertionError(
                 f"[G02] temp database missing or empty: {env_name} -> {path}"
             )
-    added = support.snapshot_repo_databases(root) - baseline
+    added = support.snapshot_repo_databases(root) - set(baseline)
     if added:
         raise AssertionError(
             f"[G02] new repository database files: {sorted(str(path) for path in added)}"
         )
-    reporter.passed("G02", "temp databases non-empty; repository has no new databases")
+    changed = sorted(
+        str(root / relative)
+        for relative, signature in baseline.items()
+        if _database_signature(root / relative) != signature
+    )
+    if changed:
+        raise AssertionError(
+            f"[G02] existing repository database files were modified: {changed}"
+        )
+    reporter.passed(
+        "G02", "temp databases non-empty; repository databases unchanged"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -116,13 +146,15 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"Repository root not found: {root}")
 
     reporter = support.Reporter()
-    temp_dir = support.create_temp_workspace()
-    database_paths = {
-        name: temp_dir / filename for name, filename in ALL_DATABASE_FILES.items()
-    }
-    baseline = support.snapshot_repo_databases(root)
+    # 临时目录与基线快照都在 try 内创建：任何早期异常也能走到 finally 清理。
+    temp_dir: Path | None = None
     services: dict[str, support.RunningService] = {}
     try:
+        temp_dir = support.create_temp_workspace()
+        database_paths = {
+            name: temp_dir / filename for name, filename in ALL_DATABASE_FILES.items()
+        }
+        baseline = _repo_database_baseline(root)
         reporter.passed("G01", "repository database baseline captured")
 
         for spec in SERVICE_SPECS:
@@ -156,6 +188,11 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         _check_isolation(root, database_paths, baseline, reporter)
+        if reporter.checks != EXPECTED_CHECKS:
+            raise AssertionError(
+                "[COUNT] acceptance check count mismatch: "
+                f"expected {EXPECTED_CHECKS}, got {reporter.checks}"
+            )
         print(f"ACCEPTANCE PASS ({reporter.checks} checks)", flush=True)
         return 0
     except AssertionError as error:
@@ -167,7 +204,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         for service in services.values():
             support.stop_service(service)
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

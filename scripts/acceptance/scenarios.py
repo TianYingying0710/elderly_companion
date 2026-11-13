@@ -105,6 +105,7 @@ def run_elder_checks(client: Client, run_id: str) -> ElderState:
         json={"progress_percent": 42},
         validate=validate_record,
     )
+    run_course_publication_checks(client, course_id)
 
     def validate_sos(event: Any) -> None:
         _check("S05", event["status"] == "pending", "status is not pending", event)
@@ -179,6 +180,162 @@ def run_elder_checks(client: Client, run_id: str) -> ElderState:
     )
 
     return ElderState(run_id, course_id, sos_id)
+
+
+def run_course_publication_checks(client: Client, course_id: str) -> None:
+    client.request_json(
+        "POST",
+        f"/api/v1/courses/{_path_id(course_id)}/publication",
+        200,
+        step="S04a",
+        description="unpublish created course",
+        json={"status": "unpublished"},
+        validate=lambda course: _check(
+            "S04a", course["status"] == "unpublished", "status mismatch", course
+        ),
+    )
+    client.request_json(
+        "GET",
+        "/api/v1/courses",
+        200,
+        step="S04b",
+        description="catalog hides unpublished course",
+        validate=lambda catalog: _check(
+            "S04b",
+            all(course["id"] != course_id for course in catalog),
+            "unpublished course still visible",
+            catalog,
+        ),
+    )
+
+    def validate_hidden(catalog: Any) -> None:
+        hidden = [course for course in catalog if course["id"] == course_id]
+        _check("S04c", len(hidden) == 1, "hidden course missing or duplicated", catalog)
+        _check(
+            "S04c",
+            hidden[0]["status"] == "unpublished",
+            "hidden course status mismatch",
+            hidden[0],
+        )
+        _check(
+            "S04c", hidden[0]["editable"] is True, "course is not editable", hidden[0]
+        )
+
+    client.request_json(
+        "GET",
+        "/api/v1/courses?include_unpublished=true",
+        200,
+        step="S04c",
+        description="include_unpublished returns hidden course",
+        validate=validate_hidden,
+    )
+    client.request_json(
+        "GET",
+        f"/api/v1/courses/{_path_id(course_id)}",
+        404,
+        step="S04d",
+        description="unpublished course detail is not found",
+        validate=lambda payload: _check(
+            "S04d",
+            payload["error"]["code"] == "course_not_found",
+            "unexpected error code",
+            payload,
+        ),
+    )
+    client.request_json(
+        "POST",
+        f"/api/v1/courses/{_path_id(course_id)}/publication",
+        409,
+        step="S04e",
+        description="same publication target rejected",
+        json={"status": "unpublished"},
+        validate=lambda payload: _check(
+            "S04e",
+            payload["error"]["code"] == "illegal_course_publication",
+            "unexpected error code",
+            payload,
+        ),
+    )
+    client.request_json(
+        "POST",
+        "/api/v1/courses/acceptance-ghost/publication",
+        404,
+        step="S04f",
+        description="unknown course publication rejected",
+        json={"status": "unpublished"},
+        validate=lambda payload: _check(
+            "S04f",
+            payload["error"]["code"] == "course_not_found",
+            "unexpected error code",
+            payload,
+        ),
+    )
+
+
+def run_course_publication_restart_checks(client: Client, course_id: str) -> None:
+    client.request_json(
+        "GET",
+        "/api/v1/courses",
+        200,
+        step="S18a",
+        description="unpublished course still hidden after restart",
+        validate=lambda catalog: _check(
+            "S18a",
+            all(course["id"] != course_id for course in catalog),
+            "unpublished course visible after restart",
+            catalog,
+        ),
+    )
+    client.request_json(
+        "GET",
+        f"/api/v1/courses/{_path_id(course_id)}",
+        404,
+        step="S18b",
+        description="unpublished detail still hidden after restart",
+        validate=lambda payload: _check(
+            "S18b",
+            payload["error"]["code"] == "course_not_found",
+            "unexpected error code",
+            payload,
+        ),
+    )
+    client.request_json(
+        "POST",
+        f"/api/v1/courses/{_path_id(course_id)}/publication",
+        200,
+        step="S18c",
+        description="republish after restart",
+        json={"status": "published"},
+        validate=lambda course: _check(
+            "S18c", course["status"] == "published", "status mismatch", course
+        ),
+    )
+    client.request_json(
+        "GET",
+        "/api/v1/courses",
+        200,
+        step="S18d",
+        description="republished course returns to catalog",
+        validate=lambda catalog: _check(
+            "S18d",
+            any(course["id"] == course_id for course in catalog),
+            "republished course missing from catalog",
+            catalog,
+        ),
+    )
+
+    def validate_detail(course: Any) -> None:
+        _check("S18e", course["status"] == "published", "status mismatch", course)
+        _check("S18e", course["editable"] is True, "course is not editable", course)
+
+    client.request_json(
+        "GET",
+        f"/api/v1/courses/{_path_id(course_id)}",
+        200,
+        step="S18e",
+        description="republished detail available",
+        validate=validate_detail,
+    )
 
 
 def run_guardian_checks(client: Client, run_id: str) -> None:
@@ -297,17 +454,23 @@ def run_elder_restart_checks(client: Client, state: ElderState) -> None:
     )
     client.request_json(
         "GET",
-        "/api/v1/courses",
+        "/api/v1/courses?include_unpublished=true",
         200,
         step="S18",
-        description="course survived elder restart",
+        description="unpublished course survived elder restart",
         validate=lambda catalog: _check(
             "S18",
-            any(course["id"] == state.course_id for course in catalog),
-            "created course missing after restart",
+            [
+                course["status"]
+                for course in catalog
+                if course["id"] == state.course_id
+            ]
+            == ["unpublished"],
+            "unpublished course missing or changed after restart",
             catalog,
         ),
     )
+    run_course_publication_restart_checks(client, state.course_id)
     client.request_json(
         "GET",
         "/api/v1/learning-records",
