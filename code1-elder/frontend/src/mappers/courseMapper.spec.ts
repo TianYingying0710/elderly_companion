@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDuration, toDomainCourse, toDomainCourseDetail, toProgressPercent } from './courseMapper'
+import { formatDuration, formatUpdatedAt, toDomainCourse, toDomainCourseDetail, toLearningHistory, toProgressPercent } from './courseMapper'
 import type { CourseDetailDto } from '../types/courses'
+import type { Course } from '../types/domain'
 
 const dto: CourseDetailDto = {
   id: 'course-1',
@@ -55,5 +56,38 @@ describe('elder courseMapper', () => {
     [Number.NaN, 100, 0],
   ])('toProgressPercent(%s/%s)→%s', (current, duration, percent) => {
     expect(toProgressPercent(current, duration)).toBe(percent)
+  })
+})
+
+const historyCourse: Course = {
+  id: 'course-1', title: '智能手机基础操作', category: '数字素养', description: 'd',
+  duration: '约 10 分钟', color: 'blue', symbol: '📖', progress: 0, outline: [], videoUrl: null,
+}
+
+describe('elder learningHistory mapper', () => {
+  it('只保留有进度的记录，按课程合并标题，并按更新时间倒序', () => {
+    const records = [
+      { course_id: 'course-1', progress_percent: 40, updated_at: '2026-11-13T02:03:00Z' },
+      { course_id: 'course-1', progress_percent: 0, updated_at: '2026-11-12T00:00:00Z' },
+      { course_id: 'missing', progress_percent: 50, updated_at: '2026-11-14T00:00:00Z' },
+      { course_id: 'course-1', progress_percent: 80, updated_at: '2026-11-14T01:00:00Z' },
+    ]
+    // 同课程在真实后端只有一条（upsert）；这里用两条验证排序与过滤互不影响
+    const items = toLearningHistory([historyCourse], records)
+    expect(items.map((item) => item.progressPercent)).toEqual([80, 40])
+    expect(items[0]!.course.title).toBe('智能手机基础操作')
+    expect(items[0]!.course.progress).toBe(80)
+  })
+
+  it('没有匹配课程或全为 0 进度时返回空数组', () => {
+    expect(toLearningHistory([], [])).toEqual([])
+    expect(toLearningHistory([historyCourse], [
+      { course_id: 'course-1', progress_percent: 0, updated_at: '2026-11-13T00:00:00Z' },
+    ])).toEqual([])
+  })
+
+  it('更新时间格式化为 MM-DD HH:mm（东八区），非法时间返回空串', () => {
+    expect(formatUpdatedAt('2026-11-13T02:03:00Z')).toBe('11-13 10:03')
+    expect(formatUpdatedAt('not-a-date')).toBe('')
   })
 })
