@@ -19,6 +19,10 @@ describe('teaching page boundaries', () => {
     expect(source).toContain('重新发布')
   })
 
+  it('处理中再次触发有明确提示而不是空 toast', () => {
+    expect(source).toContain('正在处理中，请稍候')
+  })
+
   it('api 分支不自行改写发布状态', () => {
     expect(apiBranch.length).toBeGreaterThan(0)
     expect(apiBranch).not.toMatch(/\.status\s*=[^=]/)

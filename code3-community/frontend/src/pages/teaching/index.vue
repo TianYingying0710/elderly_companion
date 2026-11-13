@@ -66,6 +66,10 @@ async function setPublication(
   id: string,
   status: 'published' | 'unpublished',
 ) {
+  if (catalog.updatingId.value) {
+    tip('正在处理中，请稍候')
+    return
+  }
   const ok = await catalog.setPublication(id, status)
   if (!ok) {
     tip(catalog.publishError.value)
