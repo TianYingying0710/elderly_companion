@@ -62,6 +62,18 @@ async function publishApiCourse() {
   closeSheet()
 }
 
+async function setPublication(
+  id: string,
+  status: 'published' | 'unpublished',
+) {
+  const ok = await catalog.setPublication(id, status)
+  if (!ok) {
+    tip(catalog.publishError.value)
+    return
+  }
+  tip(status === 'published' ? '课程已重新发布' : '课程已下架')
+}
+
 type Mode = 'preview' | 'edit' | 'create' | null
 const mode = ref<Mode>(null)
 const editingId = ref('')
@@ -185,20 +197,39 @@ function saveDraft() {
     </SubPageHeader>
 
     <template v-if="isApi">
-      <view class="api-banner">演示环境：课程发布至老人端课程服务（进程内存储，重启即清）。</view>
+      <view class="api-banner">课程发布至老人端课程服务（配置 ELDER_DATABASE_PATH 时持久化）。</view>
       <view v-if="catalog.loading.value" class="course-empty">课程目录加载中…</view>
       <view v-else-if="catalog.loadError.value" class="course-empty">{{ catalog.loadError.value }}</view>
       <view v-else class="course-list">
         <view v-for="course in catalog.courses.value" :key="course.id" class="course-card">
           <view class="course-top">
             <view class="course-title">{{ course.title }}</view>
-            <view class="tag" :class="course.hasVideo ? 'tag-green' : 'tag-blue'">
-              {{ course.hasVideo ? '有视频' : '无视频' }}
+            <view class="course-tags">
+              <view class="tag" :class="course.status === 'published' ? 'tag-green' : 'tag-red'">
+                {{ course.status === 'published' ? '已发布' : '已下架' }}
+              </view>
+              <view class="tag" :class="course.hasVideo ? 'tag-green' : 'tag-blue'">
+                {{ course.hasVideo ? '有视频' : '无视频' }}
+              </view>
             </view>
           </view>
           <view class="course-meta">{{ course.category }} · {{ course.durationText }}</view>
           <view class="course-meta">学员进度：{{ course.progressPercent == null ? '暂无学习记录' : course.progressPercent + '%' }}</view>
           <view class="course-note">{{ course.description }}</view>
+          <view class="course-footer">
+            <view class="course-actions">
+              <view v-if="!course.editable" class="small-action muted">预置课程</view>
+              <view
+                v-else
+                class="small-action"
+                @tap="setPublication(course.id, course.status === 'published' ? 'unpublished' : 'published')"
+              >
+                {{ catalog.updatingId.value === course.id
+                  ? '处理中…'
+                  : course.status === 'published' ? '下架' : '重新发布' }}
+              </view>
+            </view>
+          </view>
         </view>
         <view v-if="catalog.courses.value.length === 0" class="course-empty">暂无课程</view>
       </view>
@@ -540,6 +571,17 @@ function saveDraft() {
   color: #4968a9;
   font-size: 21rpx;
   font-weight: 700;
+}
+
+.course-tags {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+
+.small-action.muted {
+  color: #98a2b3;
 }
 
 .course-empty {
