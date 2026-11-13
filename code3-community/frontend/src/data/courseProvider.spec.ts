@@ -13,6 +13,8 @@ const dto = {
   description: '从开关机到连 Wi-Fi。',
   duration_seconds: 600,
   video_url: '/api/v1/course-videos/v1',
+  status: 'published',
+  editable: true,
 }
 
 describe('courseProvider', () => {
@@ -37,6 +39,8 @@ describe('courseProvider', () => {
         description: '从开关机到连 Wi-Fi。',
         durationText: '约 10 分钟',
         hasVideo: true,
+        status: 'published',
+        editable: true,
       },
     ])
   })

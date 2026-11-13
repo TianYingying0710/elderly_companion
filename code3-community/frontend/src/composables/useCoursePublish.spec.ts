@@ -10,6 +10,8 @@ const dto: CourseSummaryDto = {
   description: '从开关机到连 Wi-Fi。',
   duration_seconds: 600,
   video_url: null,
+  status: 'published',
+  editable: true,
 }
 
 const upload: CourseVideoUploadDto = { video_id: 'v1', video_url: '/api/v1/course-videos/v1' }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CourseFormError,
   assertVideoFile,
+  courseStatusLabel,
   formatDuration,
   mergeLearningProgress,
   parseOutline,
@@ -18,6 +19,8 @@ const dto: CourseSummaryDto = {
   description: '从开关机到连 Wi-Fi。',
   duration_seconds: 600,
   video_url: '/api/v1/course-videos/v1',
+  status: 'published',
+  editable: true,
 }
 
 const validDraft: CourseFormDraft = {
@@ -40,9 +43,16 @@ describe('courseMapper', () => {
       description: '从开关机到连 Wi-Fi。',
       durationText: '约 10 分钟',
       hasVideo: true,
+      status: 'published',
+      editable: true,
     })
     expect(toElderCourseView({ ...dto, video_url: null }).hasVideo).toBe(false)
     expect(toElderCourseView({ ...dto, video_url: '' }).hasVideo).toBe(false)
+  })
+
+  it('发布状态文案', () => {
+    expect(courseStatusLabel('published')).toBe('已发布')
+    expect(courseStatusLabel('unpublished')).toBe('已下架')
   })
 
   it.each([

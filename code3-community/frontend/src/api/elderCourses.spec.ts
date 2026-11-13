@@ -8,6 +8,7 @@ import {
   parseCourseSummary,
   parseCourseVideoUpload,
   parseLearningRecord,
+  updateCoursePublication,
   uploadCourseVideo,
 } from './elderCourses'
 
@@ -18,6 +19,8 @@ const dto = {
   description: '从开关机到连 Wi-Fi。',
   duration_seconds: 600,
   video_url: null,
+  status: 'published',
+  editable: true,
 }
 
 function recorder(result: unknown) {
@@ -141,5 +144,40 @@ describe('elderCourses API（消费者契约）', () => {
     [null, 'invalid learning record payload'],
   ])('非法学习记录载荷被拒绝：%s', (raw, message) => {
     expect(() => parseLearningRecord(raw)).toThrow(message)
+  })
+
+  it('管理目录可请求包含已下架课程', async () => {
+    const { request, calls } = recorder([dto])
+
+    await getElderCourses(request, { includeUnpublished: true })
+
+    expect(calls[0]).toEqual({
+      path: '/api/v1/courses?include_unpublished=true',
+      options: { method: 'GET' },
+    })
+  })
+
+  it('上下架使用 POST /publication 并携带 JSON 状态', async () => {
+    const { request, calls } = recorder({ ...dto, status: 'unpublished' })
+
+    await expect(
+      updateCoursePublication('course-1', 'unpublished', request),
+    ).resolves.toMatchObject({ status: 'unpublished' })
+
+    expect(calls[0]).toEqual({
+      path: '/api/v1/courses/course-1/publication',
+      options: {
+        method: 'POST',
+        data: { status: 'unpublished' },
+        header: { 'Content-Type': 'application/json' },
+      },
+    })
+  })
+
+  it.each([
+    [{ ...dto, status: 'draft' }, 'invalid course status'],
+    [{ ...dto, editable: 'yes' }, 'invalid course editable'],
+  ])('非法发布字段被拒绝：%s', (raw, message) => {
+    expect(() => parseCourseSummary(raw)).toThrow(message)
   })
 })
