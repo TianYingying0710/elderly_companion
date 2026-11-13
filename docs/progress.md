@@ -221,3 +221,22 @@
 ### 回归
 - code4-shared 契约测试 3 项全过
 - 人工验证欠账：趋势曲线滑动、功能建设中 toast、SOS 双端联调观感（api 模式两小程序同机联调）
+
+## 课程两端页面（三步计划第 2 步完成，2026-11-08，未提交）
+
+### 2a 社区端 teaching 页扩展（mock 行为一字未变）
+- 新增分层：types/elderCourses.ts（DTO 对齐 code1 契约）→ api/elderCourses.ts（GET /api/v1/courses、POST /api/v1/courses JSON、POST /api/v1/course-videos 走 uni.uploadFile multipart+进度回调；非 2xx 按统一错误契约抛 ApiError）→ mappers/courseMapper.ts（DTO→视图、表单→创建请求体、视频预检 .mp4/≤200MB）→ data/courseProvider.ts（mock/api 工厂，VITE_COURSE_DATA_MODE 默认 mock）→ composables/useCoursePublish.ts（校验→先传视频拿 video_id→建课→刷新目录；422 字段信息进 publishError）
+- 页面：api 模式列表直读课程服务（有视频/无视频标记，隐藏无契约支撑的发布/下架操作）；新建表单 api 模式追加简介(≤200)/大纲(每行一条,1-20)/时长秒数(≥0)/视频选择（chooseMessageFile 仅 mp4）；mock 模式演示行为与表单完全保留
+- api/client.ts 仅新增导出 toApiError（复用 readErrorBody，无行为变化）
+- 测试：社区端 127 项全过（基线 88 + api/mapper/provider/composable 39 项）；变异验证（发布丢失 video_id→红→还原→绿）；vue-tsc 0；build:mp-weixin 成功
+
+### 2b 老人端 LearningPage 扩展（mock 行为一字未变）
+- 新增分层：types/courses.ts（DTO）→ api/elderCourses.ts（fetch GET courses/course detail、parse 校验、resolveVideoUrl 拼绝对播放地址）→ mappers/courseMapper.ts（duration_seconds→「约 X 分钟」、配色轮换、videoUrl 进 domain）→ data/courseProvider.ts（VITE_COURSE_DATA_MODE 默认 mock）→ composables/useCourses.ts（loadCourses 启动加载、openApiCourse 先详情后跳转、失败 feedback）
+- domain Course 增加可选 videoUrl?: string|null（mock 课程不受影响）；useElderApp 暴露 isCourseApi/loadCourses/openApiCourse
+- 页面：api 模式列表沿用搜索过滤；详情展示大纲，videoUrl 非空渲染 <video controls>（src=VITE_ELDER_API_BASE_URL+video_url），null 显示「本课程暂无视频」；全程保留「演示环境」标识；pages.css 增 .course-video
+- 测试：老人端 49 项全过（基线 29 + api/mapper/provider/composable 20 项）；变异验证（videoUrl 恒 null→红→还原→绿）；vue-tsc+tsc+vite build 通过
+
+### 回归（2026-11-08 实测）
+- elder 后端 36 项全过（基线不变）；code2 前端 140 项全过；共享契约 3 项全过
+- 推送欠账：github.com 网络故障（Connection was reset），main/feat 均领先 origin，待重试
+- 人工验证欠账（累计）：趋势曲线、功能建设中 toast、SOS 双端联调、课程视频播放与上传联调

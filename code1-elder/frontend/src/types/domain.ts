@@ -1,4 +1,4 @@
-export interface Course { id:string; title:string; category:string; description:string; duration:string; color:string; symbol:string; progress:number; outline:string[] }
+export interface Course { id:string; title:string; category:string; description:string; duration:string; color:string; symbol:string; progress:number; outline:string[]; /** 关联视频播放地址（绝对 URL）；mock 演示课程无此字段，api 课程未上传视频时为 null */ videoUrl?:string|null }
 export interface ChatMessage { role:string; text:string; local?:boolean }
 export interface FamilyMember { id:string; name:string; relation:string; permissions:Record<string, boolean> }
 export interface Device { name:string; icon:string; battery:number; status:string; connection:string; description:string }

@@ -43,6 +43,12 @@ function readErrorBody(data: unknown): { code: string; message: string; fields: 
   return { code: 'unknown', message: '', fields: [] }
 }
 
+/** 把非 2xx 响应体归一成 ApiError（uploadFile 等不走 uni.request 的通道复用） */
+export function toApiError(statusCode: number, data: unknown): ApiError {
+  const { code, message, fields } = readErrorBody(data)
+  return new ApiError(statusCode, code, message, fields)
+}
+
 export function createApiClient(baseUrl: string, request?: Request) {
   return function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
     return new Promise((resolve, reject) => {

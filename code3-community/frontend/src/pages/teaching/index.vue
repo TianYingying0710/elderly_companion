@@ -3,14 +3,64 @@ import { computed, ref } from 'vue'
 import AppToast from '../../components/AppToast.vue'
 import BottomSheet from '../../components/BottomSheet.vue'
 import SubPageHeader from '../../components/SubPageHeader.vue'
+import { useCoursePublish } from '../../composables/useCoursePublish'
 import { useToast } from '../../composables/useToast'
 import { courseAfterAction, coursePublishLabel } from '../../domain/contentFlow'
 import { COURSE_CATEGORIES, createCourses } from '../../mock/community'
+import type { CourseFormDraft } from '../../types/elderCourses'
 import type { Course, CourseStatus } from '../../types/community'
 
 const courses = ref<Course[]>(createCourses())
 const activeCategory = ref('全部')
 const { toastText, tip } = useToast()
+
+// api 模式：课程目录与发布直查老人端后端（课程单一内容源；VITE_COURSE_DATA_MODE 开关）
+const catalog = useCoursePublish()
+const isApi = catalog.mode === 'api'
+if (isApi) catalog.load()
+
+const emptyApiDraft = (category: string): CourseFormDraft => ({
+  title: '',
+  category,
+  description: '',
+  outlineText: '',
+  durationSeconds: '0',
+  videoPath: '',
+  videoName: '',
+  videoSize: 0,
+})
+const apiDraft = ref<CourseFormDraft>(emptyApiDraft('手机基础'))
+
+function chooseVideo() {
+  uni.chooseMessageFile({
+    count: 1,
+    type: 'file',
+    extension: ['mp4'],
+    success: (res) => {
+      const file = res.tempFiles[0]
+      if (!file) return
+      apiDraft.value.videoPath = file.path
+      apiDraft.value.videoName = file.name
+      apiDraft.value.videoSize = file.size
+      tip(`已选择视频：${file.name}`)
+    },
+    fail: () => tip('未选择视频文件'),
+  })
+}
+
+function clearVideo() {
+  apiDraft.value.videoPath = ''
+  apiDraft.value.videoName = ''
+  apiDraft.value.videoSize = 0
+}
+
+async function publishApiCourse() {
+  const ok = await catalog.publish(apiDraft.value)
+  if (!ok) return
+  apiDraft.value = emptyApiDraft(apiDraft.value.category)
+  tip('课程已发布到老人端')
+  closeSheet()
+}
 
 type Mode = 'preview' | 'edit' | 'create' | null
 const mode = ref<Mode>(null)
@@ -78,6 +128,7 @@ function openEdit(id: string) {
 function openCreate() {
   editingId.value = ''
   draft.value = { title: '', category: '手机基础', format: '图文教程', duration: '约 3 分钟', note: '', content: '' }
+  apiDraft.value = emptyApiDraft('手机基础')
   mode.value = 'create'
 }
 
@@ -87,6 +138,10 @@ function closeSheet() {
 }
 
 function saveDraft() {
+  if (isApi) {
+    publishApiCourse()
+    return
+  }
   const title = draft.value.title.trim()
   if (!title) {
     tip('请先填写课程标题')
@@ -129,43 +184,64 @@ function saveDraft() {
       </template>
     </SubPageHeader>
 
-    <view class="category-row">
-      <view
-        v-for="category in COURSE_CATEGORIES"
-        :key="category"
-        class="category-chip"
-        :class="{ active: activeCategory === category }"
-        @tap="activeCategory = category"
-      >{{ category }}</view>
-    </view>
-
-    <view class="course-list">
-      <view v-for="course in visibleCourses" :key="course.id" class="course-card">
-        <view class="course-top">
-          <view class="course-title">{{ course.title }}</view>
-          <view class="tag" :class="tagClass(course.status)">{{ course.status }}</view>
+    <template v-if="isApi">
+      <view class="api-banner">演示环境：课程发布至老人端课程服务（进程内存储，重启即清）。</view>
+      <view v-if="catalog.loading.value" class="course-empty">课程目录加载中…</view>
+      <view v-else-if="catalog.loadError.value" class="course-empty">{{ catalog.loadError.value }}</view>
+      <view v-else class="course-list">
+        <view v-for="course in catalog.courses.value" :key="course.id" class="course-card">
+          <view class="course-top">
+            <view class="course-title">{{ course.title }}</view>
+            <view class="tag" :class="course.hasVideo ? 'tag-green' : 'tag-blue'">
+              {{ course.hasVideo ? '有视频' : '无视频' }}
+            </view>
+          </view>
+          <view class="course-meta">{{ course.category }} · {{ course.durationText }}</view>
+          <view class="course-note">{{ course.description }}</view>
         </view>
-        <view class="course-meta">{{ course.category }} · {{ course.format }} · {{ course.duration }}</view>
-        <view class="course-footer">
-          <view class="course-note">{{ course.note }}</view>
-          <view class="course-actions">
-            <view
-              v-if="course.status === '草稿'"
-              class="small-action"
-              @tap="openPreview(course.id)"
-            >预览</view>
-            <view v-else class="small-action" @tap="openEdit(course.id)">编辑</view>
+        <view v-if="catalog.courses.value.length === 0" class="course-empty">暂无课程</view>
+      </view>
+    </template>
 
-            <view v-if="course.status === '已发布'" class="small-action" @tap="unpublish(course.id)">下架</view>
-            <view v-else class="small-action" @tap="publish(course.id)">
-              {{ coursePublishLabel(course.status) }}
+    <template v-else>
+      <view class="category-row">
+        <view
+          v-for="category in COURSE_CATEGORIES"
+          :key="category"
+          class="category-chip"
+          :class="{ active: activeCategory === category }"
+          @tap="activeCategory = category"
+        >{{ category }}</view>
+      </view>
+
+      <view class="course-list">
+        <view v-for="course in visibleCourses" :key="course.id" class="course-card">
+          <view class="course-top">
+            <view class="course-title">{{ course.title }}</view>
+            <view class="tag" :class="tagClass(course.status)">{{ course.status }}</view>
+          </view>
+          <view class="course-meta">{{ course.category }} · {{ course.format }} · {{ course.duration }}</view>
+          <view class="course-footer">
+            <view class="course-note">{{ course.note }}</view>
+            <view class="course-actions">
+              <view
+                v-if="course.status === '草稿'"
+                class="small-action"
+                @tap="openPreview(course.id)"
+              >预览</view>
+              <view v-else class="small-action" @tap="openEdit(course.id)">编辑</view>
+
+              <view v-if="course.status === '已发布'" class="small-action" @tap="unpublish(course.id)">下架</view>
+              <view v-else class="small-action" @tap="publish(course.id)">
+                {{ coursePublishLabel(course.status) }}
+              </view>
             </view>
           </view>
         </view>
-      </view>
 
-      <view v-if="visibleCourses.length === 0" class="course-empty">该分类暂无课程</view>
-    </view>
+        <view v-if="visibleCourses.length === 0" class="course-empty">该分类暂无课程</view>
+      </view>
+    </template>
   </view>
 
   <!-- 预览弹层 -->
@@ -183,47 +259,93 @@ function saveDraft() {
   <!-- 编辑 / 新建表单弹层 -->
   <BottomSheet :visible="mode === 'edit' || mode === 'create'" @close="closeSheet">
     <view class="sheet-title">{{ mode === 'create' ? '新建助老课程' : '编辑课程' }}</view>
-    <view class="form-field">
-      <view class="form-label">课程标题</view>
-      <input v-model="draft.title" class="form-input" placeholder="例如：怎样调大手机字体" />
-    </view>
-    <view class="form-field">
-      <view class="form-label">分类</view>
-      <view class="chip-row">
-        <view
-          v-for="category in COURSE_CATEGORIES.filter((c) => c !== '全部')"
-          :key="category"
-          class="category-chip"
-          :class="{ active: draft.category === category }"
-          @tap="draft.category = category"
-        >{{ category }}</view>
+
+    <!-- api 模式：字段对齐老人端后端课程契约，先传视频拿 video_id 再建课 -->
+    <template v-if="isApi">
+      <view class="form-field">
+        <view class="form-label">课程标题（≤50 字）</view>
+        <input v-model="apiDraft.title" class="form-input" placeholder="例如：怎样调大手机字体" />
       </view>
-    </view>
-    <view class="form-field">
-      <view class="form-label">格式</view>
-      <view class="chip-row">
-        <view
-          v-for="format in ['图文教程', '视频教程']"
-          :key="format"
-          class="category-chip"
-          :class="{ active: draft.format === format }"
-          @tap="draft.format = format"
-        >{{ format }}</view>
+      <view class="form-field">
+        <view class="form-label">分类（≤20 字）</view>
+        <view class="chip-row">
+          <view
+            v-for="category in COURSE_CATEGORIES.filter((c) => c !== '全部')"
+            :key="category"
+            class="category-chip"
+            :class="{ active: apiDraft.category === category }"
+            @tap="apiDraft.category = category"
+          >{{ category }}</view>
+        </view>
       </view>
-    </view>
-    <view class="form-field">
-      <view class="form-label">时长</view>
-      <input v-model="draft.duration" class="form-input" placeholder="例如：约 3 分钟" />
-    </view>
-    <view class="form-field">
-      <view class="form-label">说明</view>
-      <input v-model="draft.note" class="form-input" placeholder="适合人群、注意事项等" />
-    </view>
-    <view class="form-field">
-      <view class="form-label">正文内容</view>
-      <textarea v-model="draft.content" class="form-textarea" placeholder="填写课程正文内容" />
-    </view>
-    <view class="accept" @tap="saveDraft">保存</view>
+      <view class="form-field">
+        <view class="form-label">课程简介（≤200 字）</view>
+        <textarea v-model="apiDraft.description" class="form-textarea" placeholder="一句话说明这门课教什么" />
+      </view>
+      <view class="form-field">
+        <view class="form-label">课程大纲（每行一条，1-20 条）</view>
+        <textarea v-model="apiDraft.outlineText" class="form-textarea" placeholder="第一步&#10;第二步&#10;第三步" />
+      </view>
+      <view class="form-field">
+        <view class="form-label">视频时长（秒，≥0）</view>
+        <input v-model="apiDraft.durationSeconds" class="form-input" type="number" placeholder="例如：180" />
+      </view>
+      <view class="form-field">
+        <view class="form-label">课程视频（可选，仅 .mp4、≤200MB）</view>
+        <view class="upload-button" @tap="chooseVideo">选择视频文件</view>
+        <view v-if="apiDraft.videoPath" class="upload-file">
+          <text class="upload-name">{{ apiDraft.videoName }}</text>
+          <text class="upload-remove" @tap="clearVideo">移除</text>
+        </view>
+        <view v-if="catalog.progressText.value" class="upload-progress">{{ catalog.progressText.value }}</view>
+      </view>
+      <view v-if="catalog.publishError.value" class="publish-error">{{ catalog.publishError.value }}</view>
+      <view class="accept" @tap="saveDraft">{{ catalog.publishing.value ? '发布中…' : '发布课程' }}</view>
+    </template>
+
+    <template v-else>
+      <view class="form-field">
+        <view class="form-label">课程标题</view>
+        <input v-model="draft.title" class="form-input" placeholder="例如：怎样调大手机字体" />
+      </view>
+      <view class="form-field">
+        <view class="form-label">分类</view>
+        <view class="chip-row">
+          <view
+            v-for="category in COURSE_CATEGORIES.filter((c) => c !== '全部')"
+            :key="category"
+            class="category-chip"
+            :class="{ active: draft.category === category }"
+            @tap="draft.category = category"
+          >{{ category }}</view>
+        </view>
+      </view>
+      <view class="form-field">
+        <view class="form-label">格式</view>
+        <view class="chip-row">
+          <view
+            v-for="format in ['图文教程', '视频教程']"
+            :key="format"
+            class="category-chip"
+            :class="{ active: draft.format === format }"
+            @tap="draft.format = format"
+          >{{ format }}</view>
+        </view>
+      </view>
+      <view class="form-field">
+        <view class="form-label">时长</view>
+        <input v-model="draft.duration" class="form-input" placeholder="例如：约 3 分钟" />
+      </view>
+      <view class="form-field">
+        <view class="form-label">说明</view>
+        <input v-model="draft.note" class="form-input" placeholder="适合人群、注意事项等" />
+      </view>
+      <view class="form-field">
+        <view class="form-label">正文内容</view>
+        <textarea v-model="draft.content" class="form-textarea" placeholder="填写课程正文内容" />
+      </view>
+      <view class="accept" @tap="saveDraft">保存</view>
+    </template>
   </BottomSheet>
 
   <AppToast :text="toastText" />
@@ -246,6 +368,73 @@ function saveDraft() {
   font-size: 21rpx;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.api-banner {
+  margin-bottom: 31rpx;
+  padding: 24rpx 28rpx;
+  border-radius: 26rpx;
+  color: #667187;
+  background: #edf2fb;
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.upload-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 78rpx;
+  border: 1rpx dashed #a9bcd9;
+  border-radius: 20rpx;
+  color: #4968a9;
+  background: #f4f7fd;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.upload-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 17rpx;
+  margin-top: 14rpx;
+  padding: 17rpx 21rpx;
+  border-radius: 18rpx;
+  background: #eef3fb;
+}
+
+.upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #3f4652;
+  font-size: 21rpx;
+}
+
+.upload-remove {
+  flex: none;
+  color: #ef4136;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.upload-progress {
+  margin-top: 14rpx;
+  color: #2e63c3;
+  font-size: 21rpx;
+}
+
+.publish-error {
+  margin-top: 24rpx;
+  padding: 17rpx 21rpx;
+  border-radius: 18rpx;
+  color: #ef4136;
+  background: #fff0ef;
+  font-size: 21rpx;
+  line-height: 1.5;
 }
 
 .category-row {

@@ -1,0 +1,117 @@
+/** api 模式课程发布编排：校验表单→（可选）上传视频拿 video_id→创建课程→刷新目录。 */
+
+import { ref, type Ref } from 'vue'
+
+import { ApiError } from '../api/client'
+import {
+  createElderCourse,
+  getElderCourses,
+  uploadCourseVideo,
+} from '../api/elderCourses'
+import {
+  assertVideoFile,
+  toCreateCoursePayload,
+  toElderCourseView,
+} from '../mappers/courseMapper'
+import type {
+  CourseSummaryDto,
+  CourseVideoUploadDto,
+  CourseFormDraft,
+  ElderCourseView,
+} from '../types/elderCourses'
+
+export interface CoursePublishDeps {
+  listCourses?: () => Promise<CourseSummaryDto[]>
+  uploadVideo?: (
+    filePath: string,
+    onProgress?: (percent: number) => void,
+  ) => Promise<CourseVideoUploadDto>
+  createCourse?: (payload: Parameters<typeof createElderCourse>[0]) => Promise<CourseSummaryDto>
+}
+
+export interface CoursePublishController {
+  /** 该编排层固定服务 api 模式（mock 模式页面走原有演示路径） */
+  mode: 'api'
+  courses: Ref<ElderCourseView[]>
+  loading: Ref<boolean>
+  loadError: Ref<string>
+  publishing: Ref<boolean>
+  /** 发布过程中的进度提示（视频上传百分比等），空串表示空闲 */
+  progressText: Ref<string>
+  /** 发布失败原因，空串表示无错误 */
+  publishError: Ref<string>
+  load: () => Promise<void>
+  publish: (draft: CourseFormDraft) => Promise<boolean>
+}
+
+/** 把统一错误契约（422 validation_failed 等）翻译成用户可读文案 */
+export function describeCourseError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const fieldMessages = error.fields
+      .map((field) => field.message)
+      .filter((message) => message.length > 0)
+    if (fieldMessages.length > 0) return fieldMessages.join('；')
+    if (error.message) return error.message
+    return `发布失败（HTTP ${error.statusCode}）`
+  }
+  return error instanceof Error ? error.message : '发布失败：未知错误'
+}
+
+export function useCoursePublish(deps: CoursePublishDeps = {}): CoursePublishController {
+  const listCourses = deps.listCourses ?? (async () => await getElderCourses())
+  const uploadVideo =
+    deps.uploadVideo ?? (async (filePath, onProgress) => await uploadCourseVideo(filePath, onProgress))
+  const createCourse = deps.createCourse ?? (async (payload) => await createElderCourse(payload))
+
+  const courses = ref<ElderCourseView[]>([])
+  const loading = ref(false)
+  const loadError = ref('')
+  const publishing = ref(false)
+  const progressText = ref('')
+  const publishError = ref('')
+
+  async function load(): Promise<void> {
+    loading.value = true
+    loadError.value = ''
+    try {
+      courses.value = (await listCourses()).map(toElderCourseView)
+    } catch (error) {
+      loadError.value = describeCourseError(error)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function publish(draft: CourseFormDraft): Promise<boolean> {
+    if (publishing.value) return false
+    publishing.value = true
+    publishError.value = ''
+    progressText.value = ''
+    try {
+      let videoId: string | undefined
+      if (draft.videoPath) {
+        // 客户端预检与后端同规则：非 .mp4 / 超 200MB 直接拦截
+        assertVideoFile(draft.videoName, draft.videoSize)
+        progressText.value = '视频上传中 0%'
+        const upload = await uploadVideo(draft.videoPath, (percent) => {
+          progressText.value = `视频上传中 ${percent}%`
+        })
+        videoId = upload.video_id
+        progressText.value = '视频上传完成，正在创建课程'
+      }
+      const payload = toCreateCoursePayload(draft, videoId)
+      await createCourse(payload)
+      progressText.value = ''
+      await load()
+      return true
+    } catch (error) {
+      progressText.value = ''
+      publishError.value = describeCourseError(error)
+      return false
+    } finally {
+      publishing.value = false
+    }
+  }
+
+  return { mode: 'api', courses, loading, loadError, publishing, progressText, publishError, load, publish }
+}
