@@ -2,6 +2,13 @@
 
 更新日期：2026-11-14
 
+## 2026-11-14：老人端「我的求助」接真实 SOS 列表（前端切片）
+
+- **功能**：api 模式（`VITE_SOS_DATA_MODE=api`）下，「我的求助」页通过 `GET /api/v1/sos-events?elder_id=elder-001` 读取真实事件，按创建时间倒序展示状态、创建时间与备注；加载中/失败/空态分别可见。mock 模式演示分支与 SOS 发送/刷新链路保持不变。
+- **分层**：`types/sos.ts` 新增 DTO → `domain/sosStatus.ts` 统一状态文案 → `mappers/sosMapper.ts` 映射为 `RequestRecord` → `data/sosProvider.ts` 新增 `list()` → `composables/useSos.ts` 新增 `apiRequests`/`loadRequests` → `useElderApp` 暴露 `openRequests` → `RequestsPage.vue` 渲染。
+- **边界**：零后端改动、零契约变更；后端不提供逐次处置时间轴，页面只展示创建备注与后端当前状态，不伪造中间步骤。
+- **验证**：elder 前端 `npm test` 全过、`type-check` 0 错、`vite build` 通过；elder 后端 `pytest` 仍 53 项全过（具体新增用例数写入实现报告，不硬编码进文档）。
+
 ## 2026-11-14：老人端学习记录接真实数据（前端切片）
 
 - **功能**：api 模式（`VITE_COURSE_DATA_MODE=api`）下，「学习记录」页通过 `GET /api/v1/learning-records` 读取真实进度，与课程目录按 `course_id` 合并展示标题/分类/进度/更新时间，按更新时间倒序；点击记录可打开课程详情。mock 模式演示分支与入口行为保持不变。
