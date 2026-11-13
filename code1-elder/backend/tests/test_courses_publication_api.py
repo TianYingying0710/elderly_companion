@@ -113,6 +113,28 @@ def test_preset_publication_returns_409() -> None:
     assert response.json() == COURSE_NOT_EDITABLE
 
 
+def test_preset_same_state_still_reports_not_editable() -> None:
+    response = set_publication("course-smartphone-basics", "published")
+
+    assert response.status_code == 409
+    assert response.json() == COURSE_NOT_EDITABLE
+
+
+def test_lost_publication_race_maps_to_409(monkeypatch) -> None:
+    course = create_course()
+    repository = get_course_repository()
+
+    async def lose(_course_id, _status, expected_status):
+        return None
+
+    monkeypatch.setattr(repository, "set_publication", lose)
+
+    response = set_publication(course["id"], "unpublished")
+
+    assert response.status_code == 409
+    assert response.json() == ILLEGAL_COURSE_PUBLICATION
+
+
 def test_unknown_course_publication_returns_404() -> None:
     response = set_publication("course-ghost", "unpublished")
 
