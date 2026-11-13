@@ -150,6 +150,27 @@ python scripts/acceptance/run_acceptance.py --python <python.exe> --root <repo-r
 
 `scripts/tests/test-verify-acceptance.ps1` 新增一个脚本接线测试：用假 Python 记录命令行参数，确认 `verify-acceptance.ps1` 以仓库根为 `--root`、把解析后的 Python 以 `--python` 传入。
 
+### CI 集成（仓库当前无 CI 配置）
+
+开关的默认关闭只服务于本地兼容，不是 CI 的跳过通道。CI 中固定开启验收，并把该 job 设为分支保护的 required check；否则开关本身不构成强制力。
+
+推荐 CI 分两步调用，失败归属更清晰（GitHub Actions 默认遇错即停，顺序与 `-IncludeAcceptance` 等价）：
+
+```yaml
+- run: .\scripts\verify-framework.ps1 -Python (Get-Command python).Source
+- run: .\scripts\verify-acceptance.ps1 -Python (Get-Command python).Source
+```
+
+约束：
+
+- Runner 必须是 `windows-latest`：入口脚本是 PowerShell，code2/code3 的构建命令也按 Windows 路径组织。
+- Python 必须传绝对路径：`Resolve-SilverCompanionPython` 会把 `-Python` 当文件路径校验，裸 `python` 会直接报错；用 `(Get-Command python).Source` 或 `$env:pythonLocation\python.exe`。
+- 依赖只安装仓库已声明的：`code4-shared` 与三个 backend 的 `test` extra，三端前端用 `npm ci`（三个 lock 文件均存在）。
+- 不需要 Docker、数据库服务、secrets 或外部网络模型：验收只使用 `127.0.0.1` 动态端口和系统临时目录。
+- 建议 job 超时 30 分钟（三次前端构建占大头）；验收本身在构建完成后约十几秒。
+- 失败诊断依赖 stdout：失败输出已含步骤、请求、期望/实际状态与后端日志尾部，临时目录仍按约定清理。
+- 本地发布命令保持单一入口：`verify-framework.ps1 -IncludeAcceptance`。
+
 ## 10. 测试策略
 
 1. 先写 `scripts/acceptance/tests/test_runner.py` 的失败测试：
