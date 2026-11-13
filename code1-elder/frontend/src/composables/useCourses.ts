@@ -1,4 +1,4 @@
-/** 助老课程页面编排（api 模式）：目录加载、详情打开、失败反馈。mock 模式走原有演示路径。 */
+/** 助老课程页面编排（api 模式）：目录加载、详情打开、学习记录加载、失败反馈。mock 模式走原有演示路径。 */
 
 import { createCourseProvider, type CourseProvider } from '../data/courseProvider'
 import type { Course, LearningHistoryItem } from '../types/domain'
@@ -10,6 +10,10 @@ export interface CoursesState {
   apiCourse: Course | null
   /** api 模式学习记录（课程信息 + 进度） */
   apiHistory: LearningHistoryItem[]
+  /** api 模式学习记录加载中 */
+  apiHistoryLoading: boolean
+  /** api 模式学习记录加载失败 */
+  apiHistoryFailed: boolean
   feedback: string
 }
 
@@ -50,13 +54,19 @@ export function useCourses(state: CoursesState, go: GoFn, provider: CourseProvid
     }
   }
 
-  /** api 模式：打开学习记录页前加载真实记录；失败只提示，不阻塞页面 */
+  /** api 模式：打开学习记录页前加载真实记录；加载中/失败/空各自可见，失败只提示不阻塞页面 */
   async function loadLearningHistory(): Promise<void> {
     if (!isApi) return
+    state.apiHistoryLoading = true
+    state.apiHistoryFailed = false
+    state.apiHistory = []
     try {
       state.apiHistory = await provider.learningHistory()
     } catch (error) {
+      state.apiHistoryFailed = true
       state.feedback = error instanceof Error ? error.message : '学习记录加载失败'
+    } finally {
+      state.apiHistoryLoading = false
     }
   }
 

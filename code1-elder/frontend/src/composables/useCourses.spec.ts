@@ -5,7 +5,7 @@ import { useCourses, type CoursesState } from './useCourses'
 import type { Course, LearningHistoryItem } from '../types/domain'
 
 function state(): CoursesState & Record<string, unknown> {
-  return reactive({ apiCourses: [] as Course[], apiCourse: null as Course | null, apiHistory: [] as LearningHistoryItem[], feedback: '' })
+  return reactive({ apiCourses: [] as Course[], apiCourse: null as Course | null, apiHistory: [] as LearningHistoryItem[], apiHistoryLoading: false, apiHistoryFailed: false, feedback: '' })
 }
 
 const course: Course = { id: 'course-1', title: '智能手机基础操作', category: '数字素养', description: 'd', duration: '约 10 分钟', color: 'blue', symbol: '📖', progress: 0, outline: [], videoUrl: null }
@@ -79,18 +79,24 @@ describe('useCourses（api 模式编排）', () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
-  it('loadLearningHistory：api 模式写入历史；失败写 feedback；mock 不调用', async () => {
+  it('loadLearningHistory：api 模式写入历史；失败清空并标记失败；mock 不调用', async () => {
     const entry: LearningHistoryItem = { course, progressPercent: 40, updatedAt: '2026-11-13T02:03:00Z' }
     const s = state()
     const provider = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => undefined), learningHistory: vi.fn(async () => [entry]) }
     await useCourses(s, vi.fn(), provider).loadLearningHistory()
     expect(s.apiHistory).toEqual([entry])
+    expect(s.apiHistoryLoading).toBe(false)
+    expect(s.apiHistoryFailed).toBe(false)
     expect(s.feedback).toBe('')
 
     const s2 = state()
+    s2.apiHistory = [entry]
     const failing = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => undefined), learningHistory: vi.fn(async () => { throw new Error('学习记录加载失败（HTTP 503）') }) }
     await useCourses(s2, vi.fn(), failing).loadLearningHistory()
     expect(s2.feedback).toBe('学习记录加载失败（HTTP 503）')
+    expect(s2.apiHistoryFailed).toBe(true)
+    expect(s2.apiHistoryLoading).toBe(false)
+    expect(s2.apiHistory).toEqual([])
 
     const loadHistory = vi.fn(async () => [entry])
     const mock = { mode: 'mock' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => undefined), learningHistory: loadHistory }
@@ -98,5 +104,7 @@ describe('useCourses（api 模式编排）', () => {
     await useCourses(s3, vi.fn(), mock).loadLearningHistory()
     expect(loadHistory).not.toHaveBeenCalled()
     expect(s3.apiHistory).toEqual([])
+    expect(s3.apiHistoryLoading).toBe(false)
+    expect(s3.apiHistoryFailed).toBe(false)
   })
 })

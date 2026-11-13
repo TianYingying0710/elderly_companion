@@ -22,7 +22,7 @@ export function useElderApp() {
     sos: null as SosState | null, reached: false, currentRequest: null as RequestRecord | null,
     modal: null as 'start' | 'cancel' | null, feedback: '', health: '尚未检查', checking: false,
     apiCourses: [] as Course[], apiCourse: null as Course | null,
-    apiHistory: [] as LearningHistoryItem[],
+    apiHistory: [] as LearningHistoryItem[], apiHistoryLoading: false, apiHistoryFailed: false,
   })
   const {go,back}=useNavigation(state)
   const {toggleDemo}=useDemoMode(state,demoData)
