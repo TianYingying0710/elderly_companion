@@ -2,6 +2,13 @@
 
 更新日期：2026-11-14
 
+## 2026-11-14：SOS 处置闭环（监护人处置 + 老人端进度反馈，已提交）
+
+- **功能**：监护人端消息详情页对真实 SOS 事件显示状态徽章（待处理/处理中/已解决）与下一步动作按钮（开始处理 → 标记已解决），标记已解决可附处理备注；老人端求助进度页新增「真实处理进度」卡片与刷新按钮，按事件 id 从列表接口回查状态。后端新增 `POST /api/v1/sos-events/{event_id}/transitions` 作为 PATCH 的微信兼容别名（`uni.request` 不支持 PATCH），并让 `SosEventStatusUpdate` 支持可选 `note`（≤200 字，缺省保持原备注）。
+- **契约变更（显式报备）**：新增 `POST /api/v1/sos-events/{event_id}/transitions`；`SosEventStatusUpdate` 增加 `note: str | None`。PATCH 体字段为 `{status, note?}`（文档旧版的 `{to}` 为笔误，已修正）。
+- **验证**：elder backend 53 项全过；监护人端 160 项全过、type-check 0 错、`build:mp-weixin` 通过；老人端 70 项全过、type-check 0 错；新增 message-detail 空态回归断言（处置区插入后空态不得用 `v-else` 误绑定）。
+- **欠账**：api 模式双端人工联调（监护人处置 → 老人端刷新看到状态）仍需微信开发者工具验证。
+
 ## 2026-11-14：监护人端 SOS 自动刷新（前端切片，已提交）
 
 - **功能**：消息中心页在可见期间每 30 秒轮询一次 SOS 事件（`domain/sosAutoRefresh.ts`，定时器可注入、纯函数可测），`onHide` 立即停止、`onShow` 恢复；轮询发现新事件（按 id 差集，首次加载不提示）时页面顶部出现「有 N 条新的求助消息」提示条（点击「知道了」清除，不弹窗打扰）。轮询拉取失败静默保留旧列表（首次加载失败仍走既有 toast），避免 30 秒一次的提示轰炸。

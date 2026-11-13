@@ -55,7 +55,8 @@ apiRequest<T>(path: string, options?): Promise<T>
 |---|---|---|
 | POST | `/api/v1/sos-events` | 发起求助，`201`；`id`/`created_at` 服务端生成 |
 | GET | `/api/v1/sos-events` | 事件列表，支持 `status` |
-| PATCH | `/api/v1/sos-events/{event_id}` | 状态推进，体 `{to, note?}`；`pending → processing → resolved` |
+| PATCH | `/api/v1/sos-events/{event_id}` | 状态推进，体 `{status, note?}`（note ≤200 字，缺省保持原备注）；`pending → processing → resolved` |
+| POST | `/api/v1/sos-events/{event_id}/transitions` | PATCH 的微信兼容别名（`uni.request` 不支持 PATCH），路径语义与体字段完全一致 |
 | POST | `/api/v1/course-videos` | 上传 mp4（≤200MB）分块落盘 `data/uploads/videos/`（不入 git），返回 `{video_id, video_url}` |
 | GET | `/api/v1/course-videos/{video_id}` | 视频流式播放（支持 Range 拖动进度条） |
 | GET | `/api/v1/courses` | 课程目录 = 预置演示课程 + 动态课程 |

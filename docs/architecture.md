@@ -22,7 +22,7 @@
 
 已真实接通的链路（截至 2026-11-14）：
 
-- **code1 后端四域**：SOS（POST/GET/PATCH，状态机 `pending → processing → resolved`）、课程（目录/详情/创建）、视频（mp4 分块上传落盘、Range 流式播放）、学习记录（GET/PUT upsert）。持久化：`SOS_DATABASE_PATH`（单表）与 `ELDER_DATABASE_PATH`（三表）启用本地 SQLite（仅 `CREATE TABLE IF NOT EXISTS`、无 seed，与社区端服务任务同模式）；未设置时进程内存存储、重启即清。预置演示课程由代码提供、不落库，读取时与动态课程合并。
+- **code1 后端四域**：SOS（POST/GET/PATCH + `POST /{event_id}/transitions` 微信兼容别名，状态机 `pending → processing → resolved`）、课程（目录/详情/创建）、视频（mp4 分块上传落盘、Range 流式播放）、学习记录（GET/PUT upsert）。持久化：`SOS_DATABASE_PATH`（单表）与 `ELDER_DATABASE_PATH`（三表）启用本地 SQLite（仅 `CREATE TABLE IF NOT EXISTS`、无 seed，与社区端服务任务同模式）；未设置时进程内存存储、重启即清。预置演示课程由代码提供、不落库，读取时与动态课程合并。
 - **SOS 跨端闭环**：老人端发起求助（api 模式）→ code1 落库 → 监护人端消息中心合并展示 + 可见期 30 秒轮询与页内提示条（`domain/sosAutoRefresh.ts`，无实时推送前提下的兜底）。
 - **课程跨端闭环**：社区端上传视频/建课（直连 code1）→ 老人端目录与视频播放 → 播放进度节流写回（每 ≥10% 且 ≥4s、播完写 100）→ 社区端教学页读取展示「学员进度」。
 - **社区服务任务**：code3 后端 SQLite（`COMMUNITY_DATABASE_PATH`）前后端闭环，accept/complete 条件更新并发安全。
