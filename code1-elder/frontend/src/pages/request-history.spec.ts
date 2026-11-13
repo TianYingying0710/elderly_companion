@@ -63,6 +63,29 @@ it('api 模式加载失败时提示失败而非空态', async () => {
   wrapper.unmount()
 })
 
+it('api 模式从消息详情进入求助记录时加载真实数据', async () => {
+  vi.stubEnv('VITE_SOS_DATA_MODE', 'api')
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify([realEvent]), { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  const wrapper = mount(App)
+  await wrapper.get('[data-testid="nav-me"]').trigger('click')
+  await wrapper.get('[data-testid="messages"]').trigger('click')
+  const row = wrapper.findAll('button.row').find((item) => item.text().includes('求助处理记录'))
+  expect(row).toBeDefined()
+  await row!.trigger('click')
+  const button = wrapper.findAll('button').find((item) => item.text() === '查看求助记录')
+  expect(button).toBeDefined()
+  await button!.trigger('click')
+  await flushPromises()
+
+  expect(fetchMock).toHaveBeenCalledWith('http://mock-api/api/v1/sos-events?elder_id=elder-001')
+  expect(wrapper.text()).toContain('软件 SOS 求助')
+  expect(wrapper.text()).toContain('家人已联系')
+  expect(wrapper.text()).not.toContain('暂无求助记录')
+  wrapper.unmount()
+})
+
 it('mock 模式保持演示记录且不发起请求', async () => {
   const fetchMock = vi.fn().mockRejectedValue(new Error('offline'))
   vi.stubGlobal('fetch', fetchMock)
