@@ -13,6 +13,7 @@ from silver_companion_elder.errors import (
 from silver_companion_elder.repositories.protocols import CourseRepository
 from silver_companion_elder.schemas.courses import (
     CourseDetail,
+    CourseStatus,
     CourseSummary,
     CreateCourseRequest,
 )
@@ -79,6 +80,7 @@ class InMemoryCourseRepository:
 
     def __init__(self) -> None:
         self._courses = _demo_courses()
+        self._preset_ids = set(self._courses)
         self._records: dict[str, LearningRecord] = {}
         self._videos: dict[str, Path] = {}
 
@@ -102,6 +104,8 @@ class InMemoryCourseRepository:
             duration_seconds=request.duration_seconds,
             outline=list(request.outline),
             video_url=video_url,
+            status=CourseStatus.published,
+            editable=True,
         )
         self._courses[course_id] = course
         return course
@@ -131,7 +135,9 @@ class InMemoryCourseRepository:
         """仅返回本进程登记过的视频路径，重启后旧链接自然失效。"""
         return self._videos.get(video_id)
 
-    async def list_courses(self) -> list[CourseSummary]:
+    async def list_courses(
+        self, include_unpublished: bool = False
+    ) -> list[CourseSummary]:
         return [
             CourseSummary(
                 id=course.id,
@@ -140,12 +146,40 @@ class InMemoryCourseRepository:
                 description=course.description,
                 duration_seconds=course.duration_seconds,
                 video_url=course.video_url,
+                status=course.status,
+                editable=course.id not in self._preset_ids,
             )
             for course in self._courses.values()
+            if include_unpublished or course.status == CourseStatus.published
         ]
 
-    async def get_course(self, course_id: str) -> CourseDetail | None:
-        return self._courses.get(course_id)
+    async def get_course(
+        self, course_id: str, include_unpublished: bool = False
+    ) -> CourseDetail | None:
+        course = self._courses.get(course_id)
+        if course is None:
+            return None
+        if not include_unpublished and course.status != CourseStatus.published:
+            return None
+        return course
+
+    async def set_publication(
+        self,
+        course_id: str,
+        status: CourseStatus,
+        expected_status: CourseStatus,
+    ) -> CourseDetail | None:
+        course = self._courses.get(course_id)
+        if course is None or course_id in self._preset_ids:
+            return None
+        # 同状态重复变更不算一次迁移（设计 5.4：409 illegal_course_publication）。
+        if status == expected_status:
+            return None
+        if course.status != expected_status:
+            return None
+        updated = course.model_copy(update={"status": status})
+        self._courses[course_id] = updated
+        return updated
 
     async def list_records(self) -> list[LearningRecord]:
         return sorted(self._records.values(), key=lambda record: record.updated_at, reverse=True)

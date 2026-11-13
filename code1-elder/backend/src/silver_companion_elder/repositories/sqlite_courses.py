@@ -1,9 +1,10 @@
 """课程/视频/学习记录 SQLite 持久化实现（2026-11-14 用户授权例外，模式与 SOS 仓库一致）。
 
-三张表共用一个数据库文件（`ELDER_DATABASE_PATH`），只 `CREATE TABLE IF NOT EXISTS`：
+四张表共用一个数据库文件（`ELDER_DATABASE_PATH`），只 `CREATE TABLE IF NOT EXISTS`：
 - courses：仅存社区端动态课程；预置演示课程不落库，读取时在内存层合并（避免 seed）。
 - course_videos：video_id → 磁盘文件路径登记；文件本体仍在 data/uploads/videos/。
 - learning_records：course_id 主键 upsert，course_id 可以是预置或动态课程。
+- course_publications：动态课程发布状态（course_id 主键）；缺行视为 published。
 所有 `sqlite3.Error` 统一翻译为 `CourseStorageUnavailableError`（HTTP 503）。
 """
 
@@ -25,6 +26,7 @@ from silver_companion_elder.repositories.courses import (
 )
 from silver_companion_elder.schemas.courses import (
     CourseDetail,
+    CourseStatus,
     CourseSummary,
     CreateCourseRequest,
 )
@@ -57,6 +59,14 @@ CREATE TABLE IF NOT EXISTS learning_records (
 )
 """
 
+CREATE_COURSE_PUBLICATIONS_SQL = """
+CREATE TABLE IF NOT EXISTS course_publications (
+    course_id TEXT PRIMARY KEY NOT NULL,
+    status TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+"""
+
 UPSERT_RECORD_SQL = """
 INSERT INTO learning_records (course_id, progress_percent, updated_at)
 VALUES (?, ?, ?)
@@ -78,6 +88,7 @@ class SqliteCourseRepository:
             connection.execute(CREATE_COURSES_SQL)
             connection.execute(CREATE_COURSE_VIDEOS_SQL)
             connection.execute(CREATE_LEARNING_RECORDS_SQL)
+            connection.execute(CREATE_COURSE_PUBLICATIONS_SQL)
             connection.commit()
         except sqlite3.Error as error:
             connection.rollback()
@@ -113,6 +124,8 @@ class SqliteCourseRepository:
             duration_seconds=request.duration_seconds,
             outline=list(request.outline),
             video_url=video_url,
+            status=CourseStatus.published,
+            editable=True,
         )
         connection = self._connect()
         try:
@@ -184,16 +197,24 @@ class SqliteCourseRepository:
             connection.close()
         return None if row is None else Path(row["file_path"])
 
-    async def list_courses(self) -> list[CourseSummary]:
+    async def list_courses(
+        self, include_unpublished: bool = False
+    ) -> list[CourseSummary]:
         connection = self._connect()
         try:
             rows = connection.execute(
                 "SELECT * FROM courses ORDER BY rowid ASC"
             ).fetchall()
+            publications = connection.execute(
+                "SELECT course_id, status FROM course_publications"
+            ).fetchall()
         except sqlite3.Error as error:
             raise CourseStorageUnavailableError("failed to list courses") from error
         finally:
             connection.close()
+        status_by_course = {
+            row["course_id"]: CourseStatus(row["status"]) for row in publications
+        }
         summaries = [
             CourseSummary(
                 id=course.id,
@@ -202,23 +223,32 @@ class SqliteCourseRepository:
                 description=course.description,
                 duration_seconds=course.duration_seconds,
                 video_url=course.video_url,
+                status=CourseStatus.published,
+                editable=False,
             )
             for course in self._demo.values()
         ]
-        summaries.extend(
-            CourseSummary(
-                id=row["id"],
-                title=row["title"],
-                category=row["category"],
-                description=row["description"],
-                duration_seconds=row["duration_seconds"],
-                video_url=row["video_url"],
+        for row in rows:
+            status = status_by_course.get(row["id"], CourseStatus.published)
+            if not include_unpublished and status != CourseStatus.published:
+                continue
+            summaries.append(
+                CourseSummary(
+                    id=row["id"],
+                    title=row["title"],
+                    category=row["category"],
+                    description=row["description"],
+                    duration_seconds=row["duration_seconds"],
+                    video_url=row["video_url"],
+                    status=status,
+                    editable=True,
+                )
             )
-            for row in rows
-        )
         return summaries
 
-    async def get_course(self, course_id: str) -> CourseDetail | None:
+    async def get_course(
+        self, course_id: str, include_unpublished: bool = False
+    ) -> CourseDetail | None:
         demo = self._demo.get(course_id)
         if demo is not None:
             return demo
@@ -227,11 +257,22 @@ class SqliteCourseRepository:
             row = connection.execute(
                 "SELECT * FROM courses WHERE id = ?", (course_id,)
             ).fetchone()
+            publication = connection.execute(
+                "SELECT status FROM course_publications WHERE course_id = ?",
+                (course_id,),
+            ).fetchone()
         except sqlite3.Error as error:
             raise CourseStorageUnavailableError("failed to read course") from error
         finally:
             connection.close()
         if row is None:
+            return None
+        status = (
+            CourseStatus(publication["status"])
+            if publication is not None
+            else CourseStatus.published
+        )
+        if not include_unpublished and status != CourseStatus.published:
             return None
         return CourseDetail(
             id=row["id"],
@@ -241,7 +282,56 @@ class SqliteCourseRepository:
             duration_seconds=row["duration_seconds"],
             outline=json.loads(row["outline_json"]),
             video_url=row["video_url"],
+            status=status,
+            editable=True,
         )
+
+    async def set_publication(
+        self,
+        course_id: str,
+        status: CourseStatus,
+        expected_status: CourseStatus,
+    ) -> CourseDetail | None:
+        # 同状态重复变更不算一次迁移（设计 5.4：409 illegal_course_publication）。
+        if status == expected_status:
+            return None
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            exists = connection.execute(
+                "SELECT 1 FROM courses WHERE id = ?", (course_id,)
+            ).fetchone()
+            if exists is None:
+                connection.rollback()
+                return None
+            row = connection.execute(
+                "SELECT status FROM course_publications WHERE course_id = ?",
+                (course_id,),
+            ).fetchone()
+            current = (
+                CourseStatus(row["status"])
+                if row is not None
+                else CourseStatus.published
+            )
+            if current != expected_status:
+                connection.rollback()
+                return None
+            connection.execute(
+                "INSERT INTO course_publications (course_id, status, updated_at)"
+                " VALUES (?, ?, ?)"
+                " ON CONFLICT(course_id) DO UPDATE SET"
+                " status = excluded.status, updated_at = excluded.updated_at",
+                (course_id, status.value, datetime.now(timezone.utc).isoformat()),
+            )
+            connection.commit()
+        except sqlite3.Error as error:
+            connection.rollback()
+            raise CourseStorageUnavailableError(
+                "failed to update course publication"
+            ) from error
+        finally:
+            connection.close()
+        return await self.get_course(course_id, include_unpublished=True)
 
     async def list_records(self) -> list[LearningRecord]:
         connection = self._connect()
