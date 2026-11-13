@@ -2,6 +2,13 @@
 
 更新日期：2026-11-14
 
+## 2026-11-14：老人端学习记录接真实数据（前端切片）
+
+- **功能**：api 模式（`VITE_COURSE_DATA_MODE=api`）下，「学习记录」页通过 `GET /api/v1/learning-records` 读取真实进度，与课程目录按 `course_id` 合并展示标题/分类/进度/更新时间，按更新时间倒序；点击记录可打开课程详情。mock 模式演示分支与入口行为保持不变。
+- **分层**：`api/elderCourses.ts` 新增 `getLearningRecords` → `mappers/courseMapper.ts` 新增 `toLearningHistory`/`formatUpdatedAt` → `data/courseProvider.ts` 新增 `learningHistory()` → `composables/useCourses.ts` 新增 `apiHistory`/`loadLearningHistory` → `useElderApp` 暴露 `openLearningHistory` → `LearningPage.vue` 渲染。
+- **契约**：零后端改动、零契约变更；仅消费已实现的 GET 接口。过滤 0 进度与孤立记录（课程不存在），避免展示无意义条目。
+- **验证**：elder 前端 `npm test` 全过、`type-check` 0 错、`vite build` 通过；elder 后端 `pytest` 仍 53 项全过（具体新增用例数写入实现报告，不硬编码进文档）。
+
 ## 2026-11-14：SOS 处置闭环（监护人处置 + 老人端进度反馈，已提交）
 
 - **功能**：监护人端消息详情页对真实 SOS 事件显示状态徽章（待处理/处理中/已解决）与下一步动作按钮（开始处理 → 标记已解决），标记已解决可附处理备注；老人端求助进度页新增「真实处理进度」卡片与刷新按钮，按事件 id 从列表接口回查状态。后端新增 `POST /api/v1/sos-events/{event_id}/transitions` 作为 PATCH 的微信兼容别名（`uni.request` 不支持 PATCH），并让 `SosEventStatusUpdate` 支持可选 `note`（≤200 字，缺省保持原备注）。
