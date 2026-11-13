@@ -102,3 +102,15 @@ export async function updateLearningRecord(
   if (!response.ok) throw new Error(`学习进度保存失败（HTTP ${response.status}）`)
   return parseLearningRecord(await response.json())
 }
+
+/** GET /api/v1/learning-records：全部学习记录（后端按 updated_at 倒序返回） */
+export async function getLearningRecords(
+  fetchFn: FetchLike = fetch,
+  baseUrl = elderApiBaseUrl,
+): Promise<LearningRecordDto[]> {
+  const response = await fetchFn(`${baseUrl}/api/v1/learning-records`)
+  if (!response.ok) throw new Error(`学习记录加载失败（HTTP ${response.status}）`)
+  const raw = await response.json()
+  if (!Array.isArray(raw)) throw new Error('invalid learning records payload')
+  return raw.map(parseLearningRecord)
+}

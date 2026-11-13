@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { elderApiBaseUrl, getCourseDetail, getCourses, parseCourseDetail, parseCourseSummary, parseLearningRecord, resolveVideoUrl, updateLearningRecord } from './elderCourses'
+import { elderApiBaseUrl, getCourseDetail, getCourses, getLearningRecords, parseCourseDetail, parseCourseSummary, parseLearningRecord, resolveVideoUrl, updateLearningRecord } from './elderCourses'
 
 const summary = {
   id: 'course-1',
@@ -83,5 +83,20 @@ describe('elderCourses API（消费者契约）', () => {
     [null, 'invalid learning record payload'],
   ])('非法学习记录载荷被拒绝：%s', (raw, message) => {
     expect(() => parseLearningRecord(raw)).toThrow(message)
+  })
+
+  it('学习记录走 GET /api/v1/learning-records，逐条校验 DTO', async () => {
+    const record = { course_id: 'course-1', progress_percent: 30, updated_at: '2026-11-13T00:00:00Z' }
+    const fetchFn = ok([record])
+    await expect(getLearningRecords(fetchFn, 'http://x')).resolves.toEqual([record])
+    expect(fetchFn).toHaveBeenCalledWith('http://x/api/v1/learning-records')
+  })
+
+  it('学习记录列表非法载荷被拒绝，非 2xx 抛出带状态码的错误', async () => {
+    await expect(getLearningRecords(ok({ course_id: 'c' }), 'http://x')).rejects.toThrow('invalid learning records payload')
+    await expect(
+      getLearningRecords(ok([{ course_id: '', progress_percent: 0, updated_at: 't' }]), 'http://x'),
+    ).rejects.toThrow('invalid learning record course_id')
+    await expect(getLearningRecords(failing(503), 'http://x')).rejects.toThrow('学习记录加载失败（HTTP 503）')
   })
 })
