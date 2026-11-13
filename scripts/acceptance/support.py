@@ -100,8 +100,12 @@ class Client:
                 status = response.status
                 body = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as error:
-            status = error.code
-            body = error.read().decode("utf-8", errors="replace")
+            # 先读完响应体再关闭，避免泄漏底层 socket；无论后续是否抛错都关闭。
+            try:
+                status = error.code
+                body = error.read().decode("utf-8", errors="replace")
+            finally:
+                error.close()
         except urllib.error.URLError as error:
             raise StepFailure(
                 step,
@@ -110,7 +114,7 @@ class Client:
                 expected_status,
                 "connection error",
                 "",
-                str(error.reason),
+                f"connection failed: {error.reason}",
             ) from None
         if status != expected_status:
             raise StepFailure(step, method, url, expected_status, status, body)
@@ -127,7 +131,19 @@ class Client:
                 "response is not JSON",
             ) from None
         if validate is not None:
-            validate(payload)
+            # 只捕获 Exception：KeyboardInterrupt / SystemExit 仍原样冒泡。
+            try:
+                validate(payload)
+            except Exception as exc:
+                raise StepFailure(
+                    step,
+                    method,
+                    url,
+                    expected_status,
+                    status,
+                    body,
+                    f"validation failed: {exc}",
+                ) from None
         self.reporter.passed(step, description)
         return payload
 
@@ -145,6 +161,10 @@ def build_env(
     database_paths: Mapping[str, Path],
 ) -> dict[str, str]:
     env = dict(base_env)
+    # 清掉父环境里其它 *_DATABASE_PATH，避免验收进程连到开发者本机数据库。
+    for name in [key for key in env if key.endswith("_DATABASE_PATH")]:
+        if name not in database_paths:
+            del env[name]
     env.update({name: str(path) for name, path in database_paths.items()})
     # 替换而不是追加，避免开发者环境里的同名安装包遮蔽仓库源码。
     env["PYTHONPATH"] = os.pathsep.join([str(backend_src), str(shared_src)])

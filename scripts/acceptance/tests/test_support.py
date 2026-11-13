@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -112,6 +114,17 @@ class SupportTest(unittest.TestCase):
         self.assertEqual(parts[0], str(Path("backend/src")))
         self.assertIn(str(Path("shared/src")), parts)
 
+    def test_build_env_drops_unrequested_database_paths(self) -> None:
+        env = support.build_env(
+            {"PATH": "keep", "OTHER_DATABASE_PATH": "real-other.db"},
+            Path("backend/src"),
+            Path("shared/src"),
+            {"ELDER_DATABASE_PATH": Path("tmp/elder.db")},
+        )
+        self.assertNotIn("OTHER_DATABASE_PATH", env)
+        self.assertEqual(env["ELDER_DATABASE_PATH"], str(Path("tmp/elder.db")))
+        self.assertEqual(env["PATH"], "keep")
+
     def test_snapshot_repo_databases_ignores_vendor_directories(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -182,6 +195,99 @@ class SupportTest(unittest.TestCase):
         with self.assertRaises(support.StepFailure) as raised:
             client.request_json("GET", "/text", 200, step="S94", description="text")
         self.assertIn("response is not JSON", str(raised.exception))
+
+    def test_request_json_wraps_validate_failure_in_step_failure(self) -> None:
+        client, reporter = self._client()
+
+        def validate(payload: object) -> None:
+            raise AssertionError("status must be healthy")
+
+        with self.assertRaises(support.StepFailure) as raised:
+            client.request_json(
+                "GET",
+                "/ok",
+                200,
+                step="S93",
+                description="validated",
+                validate=validate,
+            )
+        message = str(raised.exception)
+        self.assertIn("[S93]", message)
+        self.assertIn("GET", message)
+        self.assertIn(f"{self.base_url}/ok", message)
+        self.assertIn("expected 200", message)
+        self.assertIn("validation failed", message)
+        self.assertIn("status must be healthy", message)
+        self.assertEqual(reporter.checks, 0)
+
+    def test_request_json_reports_connection_failure(self) -> None:
+        port = support.allocate_port()
+        client = support.Client(f"http://127.0.0.1:{port}", support.Reporter())
+        with self.assertRaises(support.StepFailure) as raised:
+            client.request_json("GET", "/health", 200, step="S92", description="conn")
+        message = str(raised.exception)
+        self.assertIn("[S92]", message)
+        self.assertIn(f"http://127.0.0.1:{port}/health", message)
+        self.assertIn("connection failed", message)
+
+    def test_wait_for_health_detects_early_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            log_path = Path(raw) / "elder-0.log"
+            log_path.write_text(
+                "Traceback: ModuleNotFoundError: no module named demo", encoding="utf-8"
+            )
+            process = subprocess.Popen([sys.executable, "-c", "raise SystemExit(1)"])
+            try:
+                process.wait(timeout=30)
+                service = support.RunningService(
+                    "elder", process, support.allocate_port(), log_path
+                )
+                with self.assertRaises(support.StepFailure) as raised:
+                    support.wait_for_health(service, timeout=0.5)
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+        message = str(raised.exception)
+        self.assertIn("[STARTUP]", message)
+        self.assertIn("exited before health check", message)
+        self.assertIn("ModuleNotFoundError: no module named demo", message)
+
+    def test_stop_service_terminates_process_and_is_idempotent(self) -> None:
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"]
+        )
+        log_path = Path(tempfile.gettempdir()) / "silver-acceptance-stop-test.log"
+        service = support.RunningService(
+            "stop-test", process, support.allocate_port(), log_path
+        )
+        try:
+            support.stop_service(service, timeout=10.0)
+            self.assertIsNotNone(process.poll())
+            support.stop_service(service)
+            self.assertIsNotNone(process.poll())
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
+
+    def test_log_tail_returns_tail_and_tolerates_missing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            path = Path(raw) / "service.log"
+            path.write_text("a" * 100 + "TAIL", encoding="utf-8")
+            tail = support.log_tail(path, limit=10)
+            self.assertEqual(tail, "a" * 6 + "TAIL")
+            self.assertLessEqual(len(tail), 10)
+            self.assertEqual(support.log_tail(Path(raw) / "missing.log"), "")
+
+    def test_create_temp_workspace_returns_prefixed_directory(self) -> None:
+        workspace = support.create_temp_workspace()
+        try:
+            self.assertTrue(workspace.is_dir())
+            self.assertTrue(workspace.name.startswith("silver-acceptance-"))
+        finally:
+            shutil.rmtree(workspace, ignore_errors=True)
+        self.assertFalse(workspace.exists())
 
     def test_step_failure_message_contains_context(self) -> None:
         failure = support.StepFailure(
