@@ -16,35 +16,41 @@
 
 ## 当前数据流
 
-2026-10-25 老人端新增前端演示模式：`App.vue → pages/components → useElderApp → demo/data.ts`。关闭模式后清空模拟状态，不回退演示数据。Android 返回由 MainActivity 分发可取消事件给 Vue；根首页返回将应用置于后台。
+更新：2026-11-14。核心原则是**单一内容源**：SOS 事件、课程/视频、学习记录的唯一事实源在 code1 老人端后端；code2/code3 后端不实现这些域，服务之间互不调用，消费端前端直连 code1（`VITE_ELDER_API_BASE_URL`）。三端前端均默认 mock，由 Provider 工厂按环境变量切换 api 模式（`VITE_SOS_DATA_MODE` / `VITE_COURSE_DATA_MODE` / `VITE_HEALTH_DATA_MODE`），前端分层统一为 页面 → composables → data/provider 工厂 → mappers（DTO ↔ ViewModel）→ api（路径与 DTO 校验唯一出处）→ HTTP。
 
-模式开关不是认证或发布安全隔离；虚构数据随演示 APK 打包，未来真实产品发布需单独评审是否排除演示模块。
+2026-10-25 老人端新增前端演示模式：`App.vue → pages/components → useElderApp → demo/data.ts`。关闭模式后清空模拟状态，不回退演示数据。Android 返回由 MainActivity 分发可取消事件给 Vue；根首页返回将应用置于后台。模式开关不是认证或发布安全隔离；虚构数据随演示 APK 打包，未来真实产品发布需单独评审是否排除演示模块。
 
-当前成功提供业务能力的后端接口有两类：无状态的 `GET /health`（三个后端）与社区端 `/api/v1/service-tasks` 下的 5 个社区服务任务端点。健康检查只返回服务标识和运行状态，不读取或写入数据。三个前端的 `src/api/client.ts` 提供统一 HTTP 封装，并从 `VITE_API_BASE_URL` 读取对应后端地址。老人端 Android 真机使用电脑的局域网地址，通过独立的 Capacitor 配置与原生工程封装，不影响另外两端。
+已真实接通的链路（截至 2026-11-14）：
 
-老人端后端已建立课程与学习记录的 `/api/v1` 契约骨架。路由、Pydantic schema、service Protocol 和 repository Protocol 相互分离，但没有 repository 实现；合法业务请求明确返回结构化 501。监护人端后端仍只有 `GET /health`；社区端已在服务任务域接入真实持久化（见「社区端后端分层」）；三个 FastAPI 后端仍完全独立，互不导入内部代码。
+- **code1 后端四域**：SOS（POST/GET/PATCH，状态机 `pending → processing → resolved`）、课程（目录/详情/创建）、视频（mp4 分块上传落盘、Range 流式播放）、学习记录（GET/PUT upsert）。持久化：`SOS_DATABASE_PATH`（单表）与 `ELDER_DATABASE_PATH`（三表）启用本地 SQLite（仅 `CREATE TABLE IF NOT EXISTS`、无 seed，与社区端服务任务同模式）；未设置时进程内存存储、重启即清。预置演示课程由代码提供、不落库，读取时与动态课程合并。
+- **SOS 跨端闭环**：老人端发起求助（api 模式）→ code1 落库 → 监护人端消息中心合并展示 + 可见期 30 秒轮询与页内提示条（`domain/sosAutoRefresh.ts`，无实时推送前提下的兜底）。
+- **课程跨端闭环**：社区端上传视频/建课（直连 code1）→ 老人端目录与视频播放 → 播放进度节流写回（每 ≥10% 且 ≥4s、播完写 100）→ 社区端教学页读取展示「学员进度」。
+- **社区服务任务**：code3 后端 SQLite（`COMMUNITY_DATABASE_PATH`）前后端闭环，accept/complete 条件更新并发安全。
+- **监护人健康**：code2 后端 `/api/v1/health-overview/{elder_id}` + 前端六态状态化；未接硬件，Provider 恒 503（`health_data_source_unavailable`），前端映射「未接入硬件」空态。
+
+code2/code3 后端其余域均为契约骨架：code3 的救援/知识/课程 9 个操作返回结构化 501（社区端前端的救援与教学已绕开它们直连 code1）；code2 后端仅健康总览一个业务端点。三个 FastAPI 后端仍完全独立，互不导入内部代码。
 
 老人端内部现按页面、领域类型和组合函数分层：公共组件依赖 `types` 中的稳定类型，不依赖 `demo/data.ts`；`useElderApp` 只作为导航、演示、聊天、求助和健康检查模块的组装边界。Android 普通构建与设备签名/覆盖安装验收相互独立。
 
 ## 监护人端前端分层
 
-`code2-guardian/frontend` 自 2026-11-01 起是四页 UI 原型（`main` 的 `f5d073e` 基线），目录组织如下：
+`code2-guardian/frontend` 的四页 UI（index 首页 / advice AI 建议 / messages 消息中心 / profile 我的）自 2026-11 起逐步从纯 mock 原型演进为 Provider 驱动，目录组织如下：
 
 ```text
-pages/          四个页面，互不引用：index（老人画像/首页）、advice（AI 建议）、messages（消息中心）、profile（我的）
-components/     TabBar：四页共用的底部导航
-domain/         messages.ts：消息筛选等纯函数，由 vitest 覆盖
-mock/           data.ts：全部虚构演示数据的唯一来源
-types/          index.ts：领域类型
-api/client.ts   uni.request 封装（基址取 VITE_API_BASE_URL，默认 127.0.0.1:8002），当前无页面调用
-assets/         icons.ts 图标常量
+pages/          四个 tab 页 + 二级页（advice-detail / message-detail 等），互不引用
+components/     TabBar：四页共用的底部导航（custom-tab-bar）
+composables/    useHealthData：健康六态编排（loading / 错误映射）
+data/           healthDataProvider（Mock + Api 工厂，VITE_HEALTH_DATA_MODE）、sosEventsProvider（VITE_SOS_DATA_MODE）
+domain/         纯函数：messages.ts 筛选、healthDataState.ts 六态派生、sosAutoRefresh.ts 轮询、routes / secondaryNavigation / tabBarSync
+mappers/        sosEventMapper：SOS DTO → 消息条目
+api/            client.ts（本端基址）+ sosEvents.ts（跨直连 code1，VITE_ELDER_API_BASE_URL）
+mock/           data.ts：虚构演示数据唯一来源（无真实数据的页面仍读取）
+types/          领域类型
 ```
 
-依赖方向单向：`pages → components / domain / mock / types / assets`。页面直接读取 `mock/data.ts`，`messages` 页额外用 `domain/messages.ts` 做筛选；**没有** `mapper` / `composable` / `service` 层，也没有 DTO 与 ViewModel 的映射链路，因此四页展示的是静态虚构数据加本地纯函数筛选，不构成真实监护业务。`api/client.ts` 仅为后续接入准备的基础设施，没有任何页面 import 它。
+依赖方向单向：`pages → components / composables / data / domain / mock / types`。健康模块走 Provider 工厂（默认 mock 演示六态，api 模式连 code2 后端，后端未接硬件恒 503 → 前端「未接入硬件」空态）；消息中心在 mock 模式下与原演示行为完全一致（Provider 返回空列表），api 模式下把 code1 的求助事件合并进列表并 30 秒轮询。无真实数据支撑的 AI 建议、我的页仍为静态演示并带「演示数据」标识。
 
-`code2-guardian/backend` 只有无状态的 `GET /health`（`status` / `service`），不引用业务模块、不访问数据库。前端与后端之间当前没有任何业务请求。
-
-接后端时需要新增的层次（本阶段未实现，仅作为边界说明）：`api/*` 按域收口路径、`mappers/` 做 DTO ↔ ViewModel、`composables/` 承担加载与错误态，并把页面对 `mock/` 的直接依赖替换为组合函数。
+`code2-guardian/backend` 有无状态的 `GET /health` 与 `/api/v1/health-overview/{elder_id}`（`UnavailableHealthDataProvider` 如实返回 503），不访问数据库。
 
 ## 社区端前端分层
 
@@ -61,7 +67,13 @@ types/          领域类型
 
 依赖方向单向：`pages → components / composables / domain / mock / types`，反向依赖一律禁止；页面之间也不互相 import。`domain/` 不引用任何 Vue API，可直接由 vitest 覆盖，因此运行状态的推进规则（`nextStatus`、`nextServiceStatus`、`knowledgeAfterToggle`、`courseAfterAction`）都有单元测试。
 
-社区端唯有「社区服务任务」接入后端（2026-11-01）：页面 → `composables/useServiceTasks` → `api/serviceTasks` + `mappers/serviceTaskMapper` + `domain/serviceFlow` → HTTP → FastAPI `api/service_tasks` → `services/service_tasks` → `ServiceTaskRepository` Protocol → `SqliteServiceTaskRepository`。其余四个页面（救援、内容、知识、课程）仍全部来自 `mock/community.ts` 的工厂函数，两者状态互不共享，请求失败也不会回退到 mock。
+社区端已接入后端的页面（更新至 2026-11-14）：
+
+- **服务任务**（2026-11-01）：页面 → `composables/useServiceTasks` → `api/serviceTasks` + `mappers/serviceTaskMapper` + `domain/serviceFlow` → HTTP → FastAPI `api/service_tasks` → `services/service_tasks` → `ServiceTaskRepository` Protocol → `SqliteServiceTaskRepository`。
+- **教学课程**（2026-11）：页面 → `composables/useCoursePublish` → `api/elderCourses` + `mappers/courseMapper` → **跨直连 code1**（上传视频/建课/目录/学习进度，`VITE_COURSE_DATA_MODE=api`，`VITE_ELDER_API_BASE_URL`）；目录并行拉取学习记录合并展示「学员进度」，记录拉取失败不阻塞目录。
+- **救援上报**（2026-11）：经 `data/sosProvider` + `api/sosEvents` 跨直连 code1 SOS 事件（`VITE_SOS_DATA_MODE=api`）。
+
+其余页面（内容、知识）仍来自 `mock/community.ts` 的工厂函数；mock 与真实数据互不共享，请求失败也不会回退到 mock。
 
 服务任务链路的前端分层补充：
 

@@ -1,10 +1,13 @@
 # 银龄伴框架接口说明
 
-## 已实现接口
+更新：2026-11-14。模拟数据只存在于各端前端（Provider 工厂默认 mock），不作为 API 返回。
 
-模拟数据只存在于老人端前端，不作为 API 返回。2026-10-26 老人端后端新增课程与学习记录契约骨架；这些业务能力尚未接入，前端演示模式不会调用它们。
+已实现的业务链路（截至 2026-11-14）：
 
-2026-11-01 社区端「社区服务任务」成为第一条真实业务链路：数据存于本地开发用 SQLite（单表 `service_tasks`），内容只能由用户在小程序页面主动录入，无 seed、无预置演示数据。
+- **code1 老人端后端**：SOS 事件、课程、视频、学习记录四个域全部真实实现，且支持 SQLite 持久化（`SOS_DATABASE_PATH` / `ELDER_DATABASE_PATH`，未设置时进程内存存储、重启即清）。
+- **code3 社区端后端**：社区服务任务 5 个端点真实实现（SQLite，`COMMUNITY_DATABASE_PATH`）。
+- **code2 监护人端后端**：健康总览 1 个端点（未接硬件，恒 503）。
+- 三端前端均默认 mock；通过 `VITE_SOS_DATA_MODE` / `VITE_COURSE_DATA_MODE` / `VITE_HEALTH_DATA_MODE` 切换 api 模式。监护人端与社区端的 SOS、课程能力**跨直连 code1**（`VITE_ELDER_API_BASE_URL`，默认 127.0.0.1:8001），不经过各自后端。
 
 三个后端均实现：
 
@@ -42,24 +45,51 @@ GET /health
 apiRequest<T>(path: string, options?): Promise<T>
 ```
 
-基础地址来自 `VITE_API_BASE_URL`。非 2xx 响应会抛出带状态码的错误。小程序开发者工具可使用本机地址；真机调试必须使用手机可访问的局域网地址，发布时必须换成微信后台允许的 HTTPS 域名。成功提供业务能力的接口目前只有 `GET /health` 与社区端 5 个社区服务任务端点。
+基础地址来自 `VITE_API_BASE_URL`（各端默认本机端口 8001/8002/8003）。非 2xx 响应会抛出带状态码的错误。小程序开发者工具可使用本机地址；真机调试必须使用手机可访问的局域网地址，发布时必须换成微信后台允许的 HTTPS 域名。
 
-## 老人端已定义但未实现的接口
+## 老人端已实现的接口：SOS / 课程 / 视频 / 学习记录
 
-```text
-GET /api/v1/courses
-GET /api/v1/courses/{course_id}
-GET /api/v1/learning-records
-PUT /api/v1/learning-records/{course_id}
-```
+全部位于 code1-elder/backend（2026-11 起分批实现，2026-11-14 完成持久化收尾）。默认进程内存存储；设置环境变量后改用本地开发 SQLite（仅 `CREATE TABLE IF NOT EXISTS`，无 seed，与社区端服务任务同模式）：SOS 单表 `sos_events`（`SOS_DATABASE_PATH`），课程三表 `courses` / `course_videos` / `learning_records`（`ELDER_DATABASE_PATH`）。预置演示课程始终由代码提供、不落库，读取时与库内动态课程合并（预置在前）。SQLite 错误统一 `503`：`sos_storage_unavailable` / `course_storage_unavailable`。
 
-合法请求统一返回 `501 Not Implemented`：
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/sos-events` | 发起求助，`201`；`id`/`created_at` 服务端生成 |
+| GET | `/api/v1/sos-events` | 事件列表，支持 `status` |
+| PATCH | `/api/v1/sos-events/{event_id}` | 状态推进，体 `{to, note?}`；`pending → processing → resolved` |
+| POST | `/api/v1/course-videos` | 上传 mp4（≤200MB）分块落盘 `data/uploads/videos/`（不入 git），返回 `{video_id, video_url}` |
+| GET | `/api/v1/course-videos/{video_id}` | 视频流式播放（支持 Range 拖动进度条） |
+| GET | `/api/v1/courses` | 课程目录 = 预置演示课程 + 动态课程 |
+| GET | `/api/v1/courses/{course_id}` | 课程详情（含大纲） |
+| POST | `/api/v1/courses` | 创建课程，可带 `video_id` 关联已上传视频 |
+| GET | `/api/v1/learning-records` | 学习记录列表 |
+| PUT | `/api/v1/learning-records/{course_id}` | upsert 进度，体 `{progress_percent}`（0–100 整数） |
 
-```json
-{"error":{"code":"capability_not_implemented","message":"该业务能力尚未接入"}}
-```
+错误信封：`{"error":{"code","message","fields"?}}`
 
-非法或空白课程 ID，以及非整数或超出 0–100 的学习进度返回 422。501 响应不包含课程、学习记录或固定业务数据。
+| 场景 | HTTP | code |
+|---|---:|---|
+| 资源不存在 | 404 | `course_not_found` / `sos_event_not_found` / `video_not_found` |
+| SOS 非法状态推进 | 409 | `invalid_state_transition` |
+| 参数非法（空白 ID、进度越界、非 mp4、超 200MB 等） | 422 | `validation_failed` |
+| SQLite 未配置路径不可用或读写失败 | 503 | `sos_storage_unavailable` / `course_storage_unavailable` |
+
+状态机唯一真源在后端 Service；SOS 状态推进与学习记录 upsert 均以 `BEGIN IMMEDIATE` 条件更新执行，并发下只有一个请求成功。
+
+## 监护人端与社区端的跨直连（不经过各自后端）
+
+SOS 与课程能力的内容源都在 code1，消费端前端直连：
+
+- **监护人端消息中心**：`data/sosEventsProvider.ts`（`VITE_SOS_DATA_MODE=api`）经 `api/sosEvents.ts` 调 code1 `GET /api/v1/sos-events`，把求助事件合并进消息列表；页面可见期间 30 秒轮询（`domain/sosAutoRefresh.ts`），发现新事件显示页内提示条（2026-11-14）。
+- **社区端教学**：上传视频/建课/目录/学习进度直连 code1（`VITE_COURSE_DATA_MODE=api`），学习进度合并展示「学员进度」。
+- **社区端救援**：直连 code1 SOS 事件列表（`VITE_SOS_DATA_MODE=api`）。
+
+以上均使用 `VITE_ELDER_API_BASE_URL`（默认 `http://127.0.0.1:8001`）。
+
+## 监护人端后端已实现的接口：健康总览
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/health-overview/{elder_id}` | 健康总览；未接硬件，`HealthDataProvider` 如实返回 `503 {"error":{"code":"health_data_source_unavailable"}}`，前端六态映射为「未接入硬件」空态 |
 
 ## 社区端已实现的接口：社区服务任务
 
@@ -124,7 +154,7 @@ PUT /api/v1/learning-records/{course_id}
 
 `500` 与 `503` 不返回 SQL、文件路径、堆栈或连接信息。`/health` 不依赖数据库：即使 `COMMUNITY_DATABASE_PATH` 无效，`GET /health` 仍返回 `200`。
 
-## 社区端已定义但未实现的接口
+## 社区端已定义但未实现的接口（截至 2026-11-14 仍为 501）
 
 救援、知识、课程三个领域仍是契约骨架，合法请求统一返回 `501`：
 
