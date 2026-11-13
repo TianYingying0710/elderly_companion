@@ -32,6 +32,14 @@ class CourseNotFoundError(Exception):
     """The requested course does not exist in the demo catalog."""
 
 
+class CourseNotEditableError(Exception):
+    """预置演示课程不支持上下架。"""
+
+
+class IllegalCoursePublicationError(Exception):
+    """课程发布状态不允许重复变更。"""
+
+
 class VideoNotFoundError(Exception):
     """The requested course video file does not exist."""
 
@@ -70,6 +78,21 @@ COURSE_STORAGE_UNAVAILABLE: ErrorPayload = {
     "error": {
         "code": "course_storage_unavailable",
         "message": "课程存储暂不可用",
+    }
+}
+
+
+COURSE_NOT_EDITABLE: ErrorPayload = {
+    "error": {
+        "code": "course_not_editable",
+        "message": "预置课程不支持上下架",
+    }
+}
+
+ILLEGAL_COURSE_PUBLICATION: ErrorPayload = {
+    "error": {
+        "code": "illegal_course_publication",
+        "message": "课程状态不允许重复变更",
     }
 }
 
@@ -116,6 +139,18 @@ async def course_not_found_handler(
     _request: Request, _error: CourseNotFoundError
 ) -> JSONResponse:
     return JSONResponse(status_code=404, content=COURSE_NOT_FOUND)
+
+
+async def course_not_editable_handler(
+    _request: Request, _error: CourseNotEditableError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content=COURSE_NOT_EDITABLE)
+
+
+async def illegal_course_publication_handler(
+    _request: Request, _error: IllegalCoursePublicationError
+) -> JSONResponse:
+    return JSONResponse(status_code=409, content=ILLEGAL_COURSE_PUBLICATION)
 
 
 async def video_not_found_handler(

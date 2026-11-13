@@ -31,6 +31,7 @@ def test_openapi_contains_only_the_approved_business_paths() -> None:
         "/api/v1/sos-events/{event_id}/transitions",
         "/api/v1/courses",
         "/api/v1/courses/{course_id}",
+        "/api/v1/courses/{course_id}/publication",
         "/api/v1/course-videos",
         "/api/v1/course-videos/{video_id}",
         "/api/v1/learning-records",
