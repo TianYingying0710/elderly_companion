@@ -1,6 +1,14 @@
 # 开发进度
 
-更新日期：2026-11-08
+更新日期：2026-11-14
+
+## 2026-11-14：SOS 事件 SQLite 持久化（code1 后端，已提交）
+
+- **功能**：SOS 事件从进程内存升级为可选 SQLite 持久化。设置 `SOS_DATABASE_PATH` 后，`POST/GET/PATCH /api/v1/sos-events` 全部走 `repositories/sqlite_sos_events.py`（单表 `sos_events`，仅 `CREATE TABLE IF NOT EXISTS`，无 seed，模式与 code3 服务任务一致）；未设置时保持原内存存储，默认行为不变。API 契约 payload 零改动，监护人端消息中心 SOS 消费层（`data/sosEventsProvider.ts` 等，此前已合入 main）无需任何改动。
+- **并发安全**：状态流转改为条件更新（`UPDATE ... WHERE id=? AND status=?`，`BEGIN IMMEDIATE`），并发重复流转只有一个胜者，败者按 409 `illegal_sos_status_transition` 处理；SQLite 错误统一映射 503 `sos_storage_unavailable`（新增错误类型与 handler）。
+- **授权记录**：2026-11-14 用户明确授权将 SQLite 单表例外扩展到 code1 SOS 域（此前仅限 code3 服务任务），已同步记入 `AGENTS.md`。
+- **验证**：elder backend 43 项全过（36 基线 + 7 新增：CRUD 往返、过滤倒序、条件流转含过期期望、双连接 Barrier 并发唯一胜者、环境变量接线重启存活、默认内存不留库文件、存储错误映射 503）；变异验证（删 WHERE 守卫 → 3 红 → 还原 → 43 绿）；真启动冒烟通过（uvicorn + `SOS_DATABASE_PATH`：创建 pending → PATCH processing → 杀进程重启 → GET 同 id 同状态仍在）。测试环境：`E:\workspace\silver-companion-env`（仓库外既有 conda env，未安装任何新依赖）。
+- **欠账**：监护人端小程序真机/模拟器联调 SOS 消息列表仍待微信开发者工具人工验证（沿袭既有 blocked 状态）。
 
 ## 2026-11-08：教学链路 · 视频上传与播放（code1 后端，已提交并推送）
 

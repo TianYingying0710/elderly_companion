@@ -20,6 +20,10 @@ class IllegalSosStatusTransitionError(Exception):
     """SOS 事件状态不允许回退或重复流转。"""
 
 
+class SosStorageUnavailableError(Exception):
+    """SOS 事件存储（SQLite）不可用。"""
+
+
 class CourseNotFoundError(Exception):
     """The requested course does not exist in the demo catalog."""
 
@@ -50,6 +54,14 @@ SOS_EVENT_NOT_FOUND: ErrorPayload = {
     }
 }
 
+SOS_STORAGE_UNAVAILABLE: ErrorPayload = {
+    "error": {
+        "code": "sos_storage_unavailable",
+        "message": "求助事件存储暂不可用",
+    }
+}
+
+
 ILLEGAL_SOS_STATUS_TRANSITION: ErrorPayload = {
     "error": {
         "code": "illegal_sos_status_transition",
@@ -74,6 +86,12 @@ async def illegal_sos_status_transition_handler(
     _request: Request, _error: IllegalSosStatusTransitionError
 ) -> JSONResponse:
     return JSONResponse(status_code=409, content=ILLEGAL_SOS_STATUS_TRANSITION)
+
+
+async def sos_storage_unavailable_handler(
+    _request: Request, _error: SosStorageUnavailableError
+) -> JSONResponse:
+    return JSONResponse(status_code=503, content=SOS_STORAGE_UNAVAILABLE)
 
 
 async def course_not_found_handler(

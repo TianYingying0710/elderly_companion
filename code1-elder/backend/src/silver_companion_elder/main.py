@@ -11,11 +11,13 @@ from silver_companion_elder.errors import (
     CourseNotFoundError,
     IllegalSosStatusTransitionError,
     SosEventNotFoundError,
+    SosStorageUnavailableError,
     VideoNotFoundError,
     capability_not_implemented_handler,
     course_not_found_handler,
     illegal_sos_status_transition_handler,
     sos_event_not_found_handler,
+    sos_storage_unavailable_handler,
     validation_error_handler,
     video_not_found_handler,
 )
@@ -31,6 +33,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(CapabilityNotImplementedError, capability_not_implemented_handler)
     app.add_exception_handler(SosEventNotFoundError, sos_event_not_found_handler)
     app.add_exception_handler(IllegalSosStatusTransitionError, illegal_sos_status_transition_handler)
+    app.add_exception_handler(SosStorageUnavailableError, sos_storage_unavailable_handler)
     app.add_exception_handler(CourseNotFoundError, course_not_found_handler)
     app.add_exception_handler(VideoNotFoundError, video_not_found_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
