@@ -5,6 +5,7 @@ import type {
   CourseSummaryDto,
   CourseVideoUploadDto,
   CreateCoursePayload,
+  LearningRecordDto,
 } from '../types/elderCourses'
 
 const elderApiBaseUrl = import.meta.env.VITE_ELDER_API_BASE_URL ?? 'http://127.0.0.1:8001'
@@ -60,6 +61,40 @@ export function getElderCourses(request: ElderCourseRequest = elderApiRequest): 
   return request<CourseSummaryDto[]>('/api/v1/courses', { method: 'GET' }).then((raw: unknown) => {
     if (!Array.isArray(raw)) throw new Error('invalid courses payload')
     return raw.map(parseCourseSummary)
+  })
+}
+
+export function parseLearningRecord(raw: unknown): LearningRecordDto {
+  if (typeof raw !== 'object' || raw === null) {
+    throw new Error('invalid learning record payload')
+  }
+  const record = raw as Record<string, unknown>
+  if (typeof record.course_id !== 'string' || record.course_id.length === 0) {
+    throw new Error('invalid learning record course_id')
+  }
+  if (
+    typeof record.progress_percent !== 'number' ||
+    !Number.isInteger(record.progress_percent) ||
+    record.progress_percent < 0 ||
+    record.progress_percent > 100
+  ) {
+    throw new Error('invalid learning record progress_percent')
+  }
+  if (typeof record.updated_at !== 'string' || record.updated_at.length === 0) {
+    throw new Error('invalid learning record updated_at')
+  }
+  return {
+    course_id: record.course_id,
+    progress_percent: record.progress_percent,
+    updated_at: record.updated_at,
+  }
+}
+
+/** GET /api/v1/learning-records：老人端学习记录（社区端只读展示学员进度） */
+export function getLearningRecords(request: ElderCourseRequest = elderApiRequest): Promise<LearningRecordDto[]> {
+  return request<LearningRecordDto[]>('/api/v1/learning-records', { method: 'GET' }).then((raw: unknown) => {
+    if (!Array.isArray(raw)) throw new Error('invalid learning records payload')
+    return raw.map(parseLearningRecord)
   })
 }
 

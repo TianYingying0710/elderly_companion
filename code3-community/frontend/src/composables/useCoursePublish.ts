@@ -6,10 +6,12 @@ import { ApiError } from '../api/client'
 import {
   createElderCourse,
   getElderCourses,
+  getLearningRecords,
   uploadCourseVideo,
 } from '../api/elderCourses'
 import {
   assertVideoFile,
+  mergeLearningProgress,
   toCreateCoursePayload,
   toElderCourseView,
 } from '../mappers/courseMapper'
@@ -18,10 +20,12 @@ import type {
   CourseVideoUploadDto,
   CourseFormDraft,
   ElderCourseView,
+  LearningRecordDto,
 } from '../types/elderCourses'
 
 export interface CoursePublishDeps {
   listCourses?: () => Promise<CourseSummaryDto[]>
+  listLearningRecords?: () => Promise<LearningRecordDto[]>
   uploadVideo?: (
     filePath: string,
     onProgress?: (percent: number) => void,
@@ -59,6 +63,7 @@ export function describeCourseError(error: unknown): string {
 
 export function useCoursePublish(deps: CoursePublishDeps = {}): CoursePublishController {
   const listCourses = deps.listCourses ?? (async () => await getElderCourses())
+  const listLearningRecords = deps.listLearningRecords ?? (async () => await getLearningRecords())
   const uploadVideo =
     deps.uploadVideo ?? (async (filePath, onProgress) => await uploadCourseVideo(filePath, onProgress))
   const createCourse = deps.createCourse ?? (async (payload) => await createElderCourse(payload))
@@ -74,7 +79,12 @@ export function useCoursePublish(deps: CoursePublishDeps = {}): CoursePublishCon
     loading.value = true
     loadError.value = ''
     try {
-      courses.value = (await listCourses()).map(toElderCourseView)
+      // 学习记录是只读附加信息：读取失败时课程目录照常展示，仅进度标记为暂无记录
+      const [dtos, records] = await Promise.all([
+        listCourses(),
+        listLearningRecords().catch(() => [] as LearningRecordDto[]),
+      ])
+      courses.value = mergeLearningProgress(dtos.map(toElderCourseView), records)
     } catch (error) {
       loadError.value = describeCourseError(error)
     } finally {

@@ -27,11 +27,11 @@ export function useElderApp() {
   const {toggleDemo}=useDemoMode(state,demoData)
   const {send}=useChat(state)
   const {help,startHelp,progress,cancelHelp}=useSos(state,go)
-  const {isApi,loadCourses,openApiCourse}=useCourses(state,go)
+  const {isApi,loadCourses,openApiCourse,recordProgress}=useCourses(state,go)
   loadCourses()
   function togglePermission(key:string){const family=state.data?.family.find(item=>item.id===state.selected);if(state.demo&&family)family.permissions[key]=!family.permissions[key]}
   function openConversation(index:number){if(!state.data)return;state.messages=cloneDemoData(state.data).conversations[index]??[];go('chat')}
   const health=useHealth(state,checkHealth).check
-  return { state, go, back, toggleDemo, send, help, startHelp, progress, cancelHelp, health, togglePermission, openConversation, isCourseApi: isApi, loadCourses, openApiCourse }
+  return { state, go, back, toggleDemo, send, help, startHelp, progress, cancelHelp, health, togglePermission, openConversation, isCourseApi: isApi, loadCourses, openApiCourse, recordProgress }
 }
 export type ElderApp = ReturnType<typeof useElderApp>

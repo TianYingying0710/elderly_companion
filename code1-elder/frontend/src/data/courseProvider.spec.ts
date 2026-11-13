@@ -34,6 +34,17 @@ describe('courseProvider（老人端）', () => {
     await expect(provider.detail('x')).rejects.toThrow('mock 模式不提供课程详情')
   })
 
+  it('api provider 写回学习进度；mock 为空实现', async () => {
+    const record = { course_id: 'course-1', progress_percent: 40, updated_at: '2026-11-13T00:00:00Z' }
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify(record), { status: 200 }))
+    await createApiCourseProvider(fetchFn).updateProgress('course-1', 40)
+    expect(fetchFn).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/learning-records/course-1'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ progress_percent: 40 }) }),
+    )
+    await expect(createMockCourseProvider().updateProgress('course-1', 40)).resolves.toBeUndefined()
+  })
+
   it('工厂默认 mock，按模式参数切换', () => {
     expect(createCourseProvider('mock').mode).toBe('mock')
     expect(createCourseProvider('api').mode).toBe('api')

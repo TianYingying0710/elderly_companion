@@ -28,6 +28,7 @@ const validDraft = {
 function deps(result: unknown) {
   return {
     listCourses: vi.fn(async () => [dto]),
+    listLearningRecords: vi.fn(async () => []),
     uploadVideo: vi.fn(async () => upload),
     createCourse: vi.fn(async () => result),
   }
@@ -41,11 +42,29 @@ describe('useCoursePublish', () => {
     expect(controller.courses.value).toHaveLength(1)
     expect(controller.loadError.value).toBe('')
 
-    const failing = { listCourses: vi.fn(async () => { throw new Error('boom') }) }
+    const failing = { listCourses: vi.fn(async () => { throw new Error('boom') }), listLearningRecords: vi.fn(async () => []) }
     const broken = useCoursePublish(failing)
     await broken.load()
     expect(broken.courses.value).toHaveLength(0)
     expect(broken.loadError.value).toBe('boom')
+  })
+
+  it('load 合并学习记录；记录读取失败不影响课程目录', async () => {
+    const withProgress = useCoursePublish({
+      ...deps(dto),
+      listLearningRecords: vi.fn(async () => [{ course_id: 'course-1', progress_percent: 45, updated_at: 't' }]),
+    })
+    await withProgress.load()
+    expect(withProgress.courses.value[0].progressPercent).toBe(45)
+    expect(withProgress.loadError.value).toBe('')
+
+    const brokenRecords = useCoursePublish({
+      ...deps(dto),
+      listLearningRecords: vi.fn(async () => { throw new Error('records down') }),
+    })
+    await brokenRecords.load()
+    expect(brokenRecords.courses.value[0].progressPercent).toBeNull()
+    expect(brokenRecords.loadError.value).toBe('')
   })
 
   it('无视频发布：直接建课并刷新目录', async () => {

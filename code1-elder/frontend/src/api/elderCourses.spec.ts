@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { elderApiBaseUrl, getCourseDetail, getCourses, parseCourseDetail, parseCourseSummary, resolveVideoUrl } from './elderCourses'
+import { elderApiBaseUrl, getCourseDetail, getCourses, parseCourseDetail, parseCourseSummary, parseLearningRecord, resolveVideoUrl, updateLearningRecord } from './elderCourses'
 
 const summary = {
   id: 'course-1',
@@ -51,5 +51,37 @@ describe('elderCourses API（消费者契约）', () => {
     expect(resolveVideoUrl('/api/v1/course-videos/v1', 'http://x:8001')).toBe('http://x:8001/api/v1/course-videos/v1')
     expect(resolveVideoUrl('/api/v1/course-videos/v1', 'http://x:8001/')).toBe('http://x:8001/api/v1/course-videos/v1')
     expect(elderApiBaseUrl).toContain('8001')
+  })
+
+  it('学习进度走 PUT /api/v1/learning-records/{id}，提交 0-100 整数并校验响应', async () => {
+    const record = { course_id: 'course-1', progress_percent: 30, updated_at: '2026-11-13T00:00:00Z' }
+    const fetchFn = vi.fn(async () => new Response(JSON.stringify(record), { status: 200 }))
+    await expect(updateLearningRecord('course-1', 30, fetchFn, 'http://x')).resolves.toEqual(record)
+    expect(fetchFn).toHaveBeenCalledWith('http://x/api/v1/learning-records/course-1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ progress_percent: 30 }),
+    })
+  })
+
+  it('进度越界不发起请求', async () => {
+    const fetchFn = vi.fn()
+    await expect(updateLearningRecord('course-1', 101, fetchFn, 'http://x')).rejects.toThrow('invalid progress_percent')
+    await expect(updateLearningRecord('course-1', 1.5, fetchFn, 'http://x')).rejects.toThrow('invalid progress_percent')
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
+  it('学习记录写入失败抛出带状态码的错误', async () => {
+    await expect(updateLearningRecord('course-9', 10, failing(404), 'http://x')).rejects.toThrow('HTTP 404')
+  })
+
+  it.each([
+    [{ course_id: '', progress_percent: 0, updated_at: 't' }, 'invalid learning record course_id'],
+    [{ course_id: 'c', progress_percent: 101, updated_at: 't' }, 'invalid learning record progress_percent'],
+    [{ course_id: 'c', progress_percent: 1.5, updated_at: 't' }, 'invalid learning record progress_percent'],
+    [{ course_id: 'c', progress_percent: 0, updated_at: '' }, 'invalid learning record updated_at'],
+    [null, 'invalid learning record payload'],
+  ])('非法学习记录载荷被拒绝：%s', (raw, message) => {
+    expect(() => parseLearningRecord(raw)).toThrow(message)
   })
 })

@@ -1,7 +1,7 @@
 /** 课程 provider：mock/api 工厂（低耦合原则 2/3；默认 mock，页面演示行为不变） */
 
 import type { Course } from '../types/domain'
-import { getCourses, getCourseDetail, type FetchLike } from '../api/elderCourses'
+import { getCourses, getCourseDetail, updateLearningRecord, type FetchLike } from '../api/elderCourses'
 import { toDomainCourse, toDomainCourseDetail } from '../mappers/courseMapper'
 
 export type CourseSourceMode = 'mock' | 'api'
@@ -12,6 +12,8 @@ export interface CourseProvider {
   list: () => Promise<Course[]>
   /** api 模式：单门课程详情（含大纲与视频地址）；失败时抛错由调用方提示 */
   detail: (courseId: string) => Promise<Course>
+  /** api 模式：写回学习进度（0-100 整数）；mock 模式为空实现 */
+  updateProgress: (courseId: string, progressPercent: number) => Promise<void>
 }
 
 export function createApiCourseProvider(fetchFn: FetchLike = fetch): CourseProvider {
@@ -23,11 +25,19 @@ export function createApiCourseProvider(fetchFn: FetchLike = fetch): CourseProvi
       const dto = await getCourseDetail(courseId, fetchFn)
       return toDomainCourseDetail(dto, 0)
     },
+    updateProgress: async (courseId, progressPercent) => {
+      await updateLearningRecord(courseId, progressPercent, fetchFn)
+    },
   }
 }
 
 export function createMockCourseProvider(): CourseProvider {
-  return { mode: 'mock', list: async () => [], detail: async () => { throw new Error('mock 模式不提供课程详情') } }
+  return {
+    mode: 'mock',
+    list: async () => [],
+    detail: async () => { throw new Error('mock 模式不提供课程详情') },
+    updateProgress: async () => undefined,
+  }
 }
 
 export function createCourseProvider(

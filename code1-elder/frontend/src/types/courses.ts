@@ -13,3 +13,10 @@ export interface CourseSummaryDto {
 export interface CourseDetailDto extends CourseSummaryDto {
   outline: string[]
 }
+
+/** 学习记录 DTO：progress_percent 为 0-100 整数，updated_at 为后端 ISO 时间 */
+export interface LearningRecordDto {
+  course_id: string
+  progress_percent: number
+  updated_at: string
+}

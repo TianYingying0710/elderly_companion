@@ -5,6 +5,7 @@ import type {
   CourseSummaryDto,
   CreateCoursePayload,
   ElderCourseView,
+  LearningRecordDto,
 } from '../types/elderCourses'
 
 /** 表单本地校验失败（确定性输入问题），文案可直接展示给用户 */
@@ -28,6 +29,12 @@ export function toElderCourseView(dto: CourseSummaryDto): ElderCourseView {
     durationText: formatDuration(dto.duration_seconds),
     hasVideo: dto.video_url !== null && dto.video_url.length > 0,
   }
+}
+
+/** 把学习记录按 course_id 合并进课程视图；无记录的课程标记 null */
+export function mergeLearningProgress(views: ElderCourseView[], records: LearningRecordDto[]): ElderCourseView[] {
+  const progressByCourse = new Map(records.map((record) => [record.course_id, record.progress_percent]))
+  return views.map((view) => ({ ...view, progressPercent: progressByCourse.get(view.id) ?? null }))
 }
 
 /** 大纲原文按行拆分：去首尾空白、丢弃空行 */

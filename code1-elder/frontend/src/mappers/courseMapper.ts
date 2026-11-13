@@ -33,3 +33,9 @@ export function toDomainCourse(dto: CourseSummaryDto, index: number, baseUrl?: s
 export function toDomainCourseDetail(dto: CourseDetailDto, index: number, baseUrl?: string): Course {
   return { ...toDomainCourse(dto, index, baseUrl), outline: dto.outline }
 }
+
+/** 播放位置→0-100 整数进度（非法时长返回 0，越界收敛到 0/100） */
+export function toProgressPercent(currentSeconds: number, durationSeconds: number): number {
+  if (!Number.isFinite(currentSeconds) || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0
+  return Math.min(100, Math.max(0, Math.floor((currentSeconds / durationSeconds) * 100)))
+}

@@ -13,13 +13,13 @@ const course: Course = { id: 'course-1', title: '智能手机基础操作', cate
 describe('useCourses（api 模式编排）', () => {
   it('加载目录写入 state.apiCourses；失败写 feedback', async () => {
     const s = state()
-    const provider = { mode: 'api' as const, list: vi.fn(async () => [course]), detail: vi.fn(async () => course) }
+    const provider = { mode: 'api' as const, list: vi.fn(async () => [course]), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => undefined) }
     const { loadCourses } = useCourses(s, vi.fn(), provider)
     await loadCourses()
     expect(s.apiCourses).toEqual([course])
     expect(s.feedback).toBe('')
 
-    const broken = { mode: 'api' as const, list: vi.fn(async () => { throw new Error('HTTP 500') }), detail: vi.fn(async () => course) }
+    const broken = { mode: 'api' as const, list: vi.fn(async () => { throw new Error('HTTP 500') }), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => undefined) }
     const s2 = state()
     useCourses(s2, vi.fn(), broken).loadCourses()
     await Promise.resolve()
@@ -30,7 +30,7 @@ describe('useCourses（api 模式编排）', () => {
   it('openApiCourse：先取详情成功再跳转；失败不跳转', async () => {
     const s = state()
     const go = vi.fn()
-    const provider = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course) }
+    const provider = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => undefined) }
     const { openApiCourse } = useCourses(s, go, provider)
     await openApiCourse('course-1')
     expect(provider.detail).toHaveBeenCalledWith('course-1')
@@ -39,7 +39,7 @@ describe('useCourses（api 模式编排）', () => {
 
     const s2 = state()
     const go2 = vi.fn()
-    const broken = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => { throw new Error('HTTP 404') }) }
+    const broken = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => { throw new Error('HTTP 404') }), updateProgress: vi.fn(async () => undefined) }
     await useCourses(s2, go2, broken).openApiCourse('x')
     expect(s2.apiCourse).toBeNull()
     expect(s2.feedback).toBe('HTTP 404')
@@ -49,7 +49,7 @@ describe('useCourses（api 模式编排）', () => {
   it('mock 模式为空实现：不动 state、不跳转', async () => {
     const s = state()
     const go = vi.fn()
-    const provider = { mode: 'mock' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course) }
+    const provider = { mode: 'mock' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => undefined) }
     const { isApi, loadCourses, openApiCourse } = useCourses(s, go, provider)
     expect(isApi).toBe(false)
     await loadCourses()
@@ -58,5 +58,24 @@ describe('useCourses（api 模式编排）', () => {
     expect(provider.detail).not.toHaveBeenCalled()
     expect(go).not.toHaveBeenCalled()
     expect(s.apiCourses).toEqual([])
+  })
+
+  it('recordProgress：api 模式写回，失败写 feedback；mock 不调用', async () => {
+    const s = state()
+    const updateProgress = vi.fn(async () => undefined)
+    const provider = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress }
+    await useCourses(s, vi.fn(), provider).recordProgress('course-1', 30)
+    expect(updateProgress).toHaveBeenCalledWith('course-1', 30)
+    expect(s.feedback).toBe('')
+
+    const s2 = state()
+    const failing = { mode: 'api' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress: vi.fn(async () => { throw new Error('HTTP 400') }) }
+    await useCourses(s2, vi.fn(), failing).recordProgress('course-1', 10)
+    expect(s2.feedback).toBe('HTTP 400')
+
+    const updateMock = vi.fn(async () => undefined)
+    const mock = { mode: 'mock' as const, list: vi.fn(async () => []), detail: vi.fn(async () => course), updateProgress: updateMock }
+    await useCourses(state(), vi.fn(), mock).recordProgress('course-1', 10)
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })

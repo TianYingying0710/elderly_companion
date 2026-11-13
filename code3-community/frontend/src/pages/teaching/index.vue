@@ -197,6 +197,7 @@ function saveDraft() {
             </view>
           </view>
           <view class="course-meta">{{ course.category }} · {{ course.durationText }}</view>
+          <view class="course-meta">学员进度：{{ course.progressPercent == null ? '暂无学习记录' : course.progressPercent + '%' }}</view>
           <view class="course-note">{{ course.description }}</view>
         </view>
         <view v-if="catalog.courses.value.length === 0" class="course-empty">暂无课程</view>

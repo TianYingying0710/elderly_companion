@@ -38,5 +38,15 @@ export function useCourses(state: CoursesState, go: GoFn, provider: CourseProvid
     go('course-detail', courseId)
   }
 
-  return { isApi, loadCourses, openApiCourse }
+  /** api 模式：播放过程中写回学习进度；失败只提示，不打断播放 */
+  async function recordProgress(courseId: string, progressPercent: number): Promise<void> {
+    if (!isApi) return
+    try {
+      await provider.updateProgress(courseId, progressPercent)
+    } catch (error) {
+      state.feedback = error instanceof Error ? error.message : '学习进度保存失败'
+    }
+  }
+
+  return { isApi, loadCourses, openApiCourse, recordProgress }
 }

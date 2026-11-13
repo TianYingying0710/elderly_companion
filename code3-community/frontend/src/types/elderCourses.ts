@@ -51,4 +51,13 @@ export interface ElderCourseView {
   durationText: string
   /** 是否已关联视频 */
   hasVideo: boolean
+  /** 学员学习进度（0-100 整数）；null/undefined 表示暂无学习记录 */
+  progressPercent?: number | null
+}
+
+/** 学习记录 DTO：progress_percent 为 0-100 整数，updated_at 为后端 ISO 时间 */
+export interface LearningRecordDto {
+  course_id: string
+  progress_percent: number
+  updated_at: string
 }

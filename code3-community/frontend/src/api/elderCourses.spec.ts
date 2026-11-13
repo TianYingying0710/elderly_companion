@@ -4,8 +4,10 @@ import { ApiError } from './client'
 import {
   createElderCourse,
   getElderCourses,
+  getLearningRecords,
   parseCourseSummary,
   parseCourseVideoUpload,
+  parseLearningRecord,
   uploadCourseVideo,
 } from './elderCourses'
 
@@ -116,5 +118,28 @@ describe('elderCourses API（消费者契约）', () => {
       statusCode: 0,
       code: 'network',
     })
+  })
+
+  it('学习记录使用 GET /api/v1/learning-records，并逐条校验 DTO', async () => {
+    const record = { course_id: 'course-1', progress_percent: 60, updated_at: '2026-11-13T00:00:00Z' }
+    const { request, calls } = recorder([record])
+
+    await expect(getLearningRecords(request)).resolves.toEqual([record])
+    expect(calls[0]).toEqual({ path: '/api/v1/learning-records', options: { method: 'GET' } })
+  })
+
+  it('学习记录载荷不是数组时拒绝', async () => {
+    const request = vi.fn(async () => ({ records: [] }))
+    await expect(getLearningRecords(request)).rejects.toThrow('invalid learning records payload')
+  })
+
+  it.each([
+    [{ course_id: '', progress_percent: 0, updated_at: 't' }, 'invalid learning record course_id'],
+    [{ course_id: 'c', progress_percent: -1, updated_at: 't' }, 'invalid learning record progress_percent'],
+    [{ course_id: 'c', progress_percent: 101, updated_at: 't' }, 'invalid learning record progress_percent'],
+    [{ course_id: 'c', progress_percent: 0, updated_at: '' }, 'invalid learning record updated_at'],
+    [null, 'invalid learning record payload'],
+  ])('非法学习记录载荷被拒绝：%s', (raw, message) => {
+    expect(() => parseLearningRecord(raw)).toThrow(message)
   })
 })

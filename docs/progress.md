@@ -2,7 +2,7 @@
 
 更新日期：2026-11-08
 
-## 2026-11-08：教学链路 · 视频上传与播放（code1 后端，已完成待提交）
+## 2026-11-08：教学链路 · 视频上传与播放（code1 后端，已提交并推送）
 
 - **功能**：社区端可上传课程视频（mp4，≤200MB，分块落盘至 `code1-elder/backend/data/uploads/videos/`，已入 `.gitignore`）；可带视频创建课程（`POST /api/v1/courses`，动态课程与预置演示课程同构进目录）；老人端可通过 `video_url` 流式播放（FileResponse 支持 Range 拖动进度条）。
 - **契约扩展（显式报备）**：`CourseSummary.video_url: str | None = None`（预置演示课程为 null）；新增 `CourseVideoUpload`、`CreateCourseRequest` schema；新增 `POST /api/v1/course-videos`、`GET /api/v1/course-videos/{video_id}`；video_id 无效归为 422 `validation_failed`（不是 404）；课程 404 payload 为 `course_not_found`（上轮已报备）。
@@ -10,10 +10,10 @@
 - **验证**：elder backend 36 项全过（+8 视频契约测试）；变异验证（删 mp4 格式守卫 → 红 → 还原 → 绿）；真启动冒烟全链路通过（curl multipart 上传 → 带视频建课 → 目录 6 门 → 播放 HTTP 200 字节级一致 → 幽灵视频 404 video_not_found）；共享契约 3 项全过。
 - **冒烟工具备注**：PowerShell 5.1 的 `Invoke-RestMethod -InFile` 不发 multipart（`body.file missing`），须用 `curl.exe -F`；命令行内联中文 JSON 会因 GBK 编码乱码，须写 UTF-8（无 BOM）临时文件后 `--data-binary @file`。
 - **环境里程碑（2026-11-08）**：worktree 老人端/社区端 `node_modules` 已由用户以 `mklink /J`（cmd）创建 junction 指向主仓库补齐；两端 vitest 基线（20 项 / 80 项）全过，SOS 收尾与两端前端接入的开发条件已就绪。**Agent 自建 junction 因沙箱路径重定向产生死链，用户在 cmd 中创建则正常**——后续不要再由 Agent 建 junction。
-- **待办**：①社区端上传页 + 老人端课程/播放页前端接入；②SOS 收尾两步；③本切片后端改动未提交。
+- **状态**：①社区端上传页 + 老人端课程/播放页前端接入、②SOS 收尾两步均已完成，随 `8142410`、`1cc9296` 提交并推送；③本切片后端改动已随 `122c849` 推送。
 
 > **⚠️ 工作目录漂移提醒（2026-11-03）**：本项目存在多个 git worktree，代码开发与微信开发者工具实际打开的不是同一目录，容易误判进度。
-> - 开发/提交位置：`E:\c2--\code-guardian-hardening`（worktree，分支 `feat-guardian-secondary-pages`，HEAD `012879e`）。
+> - 开发/提交位置：`E:\c2--\code-guardian-hardening`（worktree，分支 `feat-guardian-secondary-pages`，HEAD `1cc9296`）。
 > - 开发者工具实际打开的目录：`E:\c2--\code-guardian`（**已被 `git worktree` 注销的残留目录**，不在 `git worktree list` 中，`git` 报 `not a git repository`）。
 > - 主仓库：`E:\c2--\code`（worktree 列表仅含 `code`@main、`code-guardian-hardening`@feat-guardian-secondary-pages、`code-guardian-recovered`@feat-guardian-frontend 三项）。
 > - 后果：`code-guardian` 的 `src/` 源码是旧基线（缺六态代码，测试仅 3 文件/11 项）；此前只同步过 `dist/build/mp-weixin` 编译产物，**源码从未对齐**。凡是以 `code-guardian` 目录看到的代码/测试为准判断进度，都会与 `code-guardian-hardening` 的真实实现不符。
@@ -222,7 +222,7 @@
 - code4-shared 契约测试 3 项全过
 - 人工验证欠账：趋势曲线滑动、功能建设中 toast、SOS 双端联调观感（api 模式两小程序同机联调）
 
-## 课程两端页面（三步计划第 2 步完成，2026-11-08，未提交）
+## 课程两端页面（三步计划第 2 步完成，2026-11-08，已提交并推送 1cc9296）
 
 ### 2a 社区端 teaching 页扩展（mock 行为一字未变）
 - 新增分层：types/elderCourses.ts（DTO 对齐 code1 契约）→ api/elderCourses.ts（GET /api/v1/courses、POST /api/v1/courses JSON、POST /api/v1/course-videos 走 uni.uploadFile multipart+进度回调；非 2xx 按统一错误契约抛 ApiError）→ mappers/courseMapper.ts（DTO→视图、表单→创建请求体、视频预检 .mp4/≤200MB）→ data/courseProvider.ts（mock/api 工厂，VITE_COURSE_DATA_MODE 默认 mock）→ composables/useCoursePublish.ts（校验→先传视频拿 video_id→建课→刷新目录；422 字段信息进 publishError）
@@ -238,5 +238,13 @@
 
 ### 回归（2026-11-08 实测）
 - elder 后端 36 项全过（基线不变）；code2 前端 140 项全过；共享契约 3 项全过
-- 推送欠账：github.com 网络故障（Connection was reset），main/feat 均领先 origin，待重试
+- 已推送：main 与 feat-guardian-secondary-pages 同为 `1cc9296`（线性合并，无 force push）
 - 人工验证欠账（累计）：趋势曲线、功能建设中 toast、SOS 双端联调、课程视频播放与上传联调
+
+## 课程学习进度写回（2026-11-13 完成）
+
+- 老人端：LearningPage 在视频 `timeupdate` 时写回 `PUT /api/v1/learning-records/{course_id}`（进度每提升 ≥10% 且间隔 ≥4 秒一次，`ended` 固定写 100）；分层为 api `updateLearningRecord` → mapper `toProgressPercent` → provider `updateProgress` → composable `recordProgress`，默认 mock 模式不发起请求。
+- 社区端：teaching api 模式与课程目录并行读取 `GET /api/v1/learning-records`，按 `course_id` 合并展示「学员进度」；学习记录读取失败时课程目录照常展示、进度显示暂无记录。
+- 开关：沿用 `VITE_COURSE_DATA_MODE`（默认 mock，演示行为不变）；未新增接口或契约字段，仅复用已有 `course_id`/`progress_percent`/`updated_at`。
+- 验证：老人端课程相关 39 项、社区端课程相关 48 项通过；两端 `type-check` 均 0 错误。真实后端联调未跑（本机未找到含 fastapi/uvicorn 的 Python 环境）。
+- 说明：上文 2026-11-08 盘点中的 SOS 与课程前端欠账已由 `8142410`、`1cc9296` 补齐，剩余仅端到端演练与实时推送。

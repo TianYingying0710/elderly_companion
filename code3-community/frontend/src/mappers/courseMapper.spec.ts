@@ -4,6 +4,7 @@ import {
   CourseFormError,
   assertVideoFile,
   formatDuration,
+  mergeLearningProgress,
   parseOutline,
   toCreateCoursePayload,
   toElderCourseView,
@@ -51,6 +52,15 @@ describe('courseMapper', () => {
     [125, '约 2 分钟'],
   ])('formatDuration(%s)→%s', (seconds, text) => {
     expect(formatDuration(seconds)).toBe(text)
+  })
+
+  it('学习记录按 course_id 合并到课程视图，无记录标记 null', () => {
+    const views = [toElderCourseView(dto), toElderCourseView({ ...dto, id: 'course-2' })]
+    expect(mergeLearningProgress(views, [{ course_id: 'course-1', progress_percent: 60, updated_at: 't' }])).toEqual([
+      expect.objectContaining({ id: 'course-1', progressPercent: 60 }),
+      expect.objectContaining({ id: 'course-2', progressPercent: null }),
+    ])
+    expect(mergeLearningProgress([], [])).toEqual([])
   })
 
   it('大纲按行拆分并丢弃空行', () => {

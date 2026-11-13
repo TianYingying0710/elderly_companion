@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDuration, toDomainCourse, toDomainCourseDetail } from './courseMapper'
+import { formatDuration, toDomainCourse, toDomainCourseDetail, toProgressPercent } from './courseMapper'
 import type { CourseDetailDto } from '../types/courses'
 
 const dto: CourseDetailDto = {
@@ -41,5 +41,19 @@ describe('elder courseMapper', () => {
     [600, '约 10 分钟'],
   ])('formatDuration(%s)→%s', (seconds, text) => {
     expect(formatDuration(seconds)).toBe(text)
+  })
+
+  it.each([
+    [0, 100, 0],
+    [30, 100, 30],
+    [59.9, 100, 59],
+    [50, 60, 83],
+    [100, 100, 100],
+    [120, 100, 100],
+    [-1, 100, 0],
+    [10, 0, 0],
+    [Number.NaN, 100, 0],
+  ])('toProgressPercent(%s/%s)→%s', (current, duration, percent) => {
+    expect(toProgressPercent(current, duration)).toBe(percent)
   })
 })
