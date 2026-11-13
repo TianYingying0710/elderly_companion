@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS sos_events (
 
 CONDITIONAL_UPDATE_SQL = """
 UPDATE sos_events
-SET status = ?
+SET status = ?, note = COALESCE(?, note)
 WHERE id = ? AND status = ?
 """
 
@@ -103,14 +103,18 @@ class SqliteSosEventRepository:
         return None if row is None else self._row_to_event(row)
 
     async def update_status(
-        self, event_id: str, status: SosEventStatus, expected_status: SosEventStatus
+        self,
+        event_id: str,
+        status: SosEventStatus,
+        expected_status: SosEventStatus,
+        note: str | None = None,
     ) -> SosEvent | None:
-        """条件写入：库中状态仍等于 expected_status 才前进一步，返回更新后事件；未命中返回 None。"""
+        """条件写入：库中状态仍等于 expected_status 才前进一步，返回更新后事件；未命中返回 None。note 非 None 时覆盖备注。"""
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
-                CONDITIONAL_UPDATE_SQL, (status, event_id, expected_status)
+                CONDITIONAL_UPDATE_SQL, (status, note, event_id, expected_status)
             )
             updated: SosEvent | None = None
             if cursor.rowcount == 1:

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { getSosEvents, parseSosEvent } from './sosEvents'
+import { getSosEvents, parseSosEvent, patchSosEvent } from './sosEvents'
 
 // 消费者契约样本：字段集合与 code1-elder 后端 tests/test_sos_events_api.py
 // 的响应形态完全一致（id=uuid4().hex 共 32 位）。
@@ -50,5 +50,35 @@ describe('sos events api', () => {
 
   it('parseSosEvent ignores extra fields from the backend', () => {
     expect(() => parseSosEvent({ ...CONTRACT_SAMPLE, extra: 'ignored' })).not.toThrow()
+  })
+})
+
+describe('patchSosEvent', () => {
+  it('POSTs to the transitions alias (uni.request has no PATCH) and parses the response', async () => {
+    const request = fakeRequest({ ...CONTRACT_SAMPLE, status: 'processing' })
+
+    const updated = await patchSosEvent(CONTRACT_SAMPLE.id, 'processing', undefined, request)
+
+    expect(request).toHaveBeenCalledWith(`/api/v1/sos-events/${CONTRACT_SAMPLE.id}/transitions`, {
+      method: 'POST',
+      header: { 'Content-Type': 'application/json' },
+      data: JSON.stringify({ status: 'processing' }),
+    })
+    expect(updated.status).toBe('processing')
+  })
+
+  it('includes the note only when provided', async () => {
+    const request = fakeRequest({ ...CONTRACT_SAMPLE, status: 'resolved', note: '已电话确认' })
+
+    await patchSosEvent(CONTRACT_SAMPLE.id, 'resolved', '已电话确认', request)
+
+    const call = request.mock.calls[0] as unknown as [string, { data: string }]
+    expect(JSON.parse(call[1].data)).toEqual({ status: 'resolved', note: '已电话确认' })
+  })
+
+  it('propagates request failures (409 invalid transition) to the caller', async () => {
+    const request = vi.fn().mockRejectedValue(new Error('HTTP 409'))
+
+    await expect(patchSosEvent(CONTRACT_SAMPLE.id, 'resolved', undefined, request)).rejects.toThrow('HTTP 409')
   })
 })

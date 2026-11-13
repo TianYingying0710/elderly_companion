@@ -57,8 +57,21 @@ async def update_sos_event_status(
         raise IllegalSosStatusTransitionError
     # 条件更新：并发下状态已被其他请求改变时未命中，按不允许流转处理（409）。
     updated = await repository.update_status(
-        event_id, payload.status, expected_status=event.status
+        event_id, payload.status, expected_status=event.status, note=payload.note
     )
     if updated is None:
         raise IllegalSosStatusTransitionError
     return updated
+
+
+# POST 别名：微信小程序 uni.request 不支持 PATCH 方法（与 code3 服务任务
+# 采用 POST transitions 同一平台约束），语义与 PATCH 完全一致。
+@router.post(
+    "/{event_id}/transitions", response_model=SosEvent, responses=error_responses
+)
+async def transition_sos_event_status(
+    event_id: EventId,
+    payload: SosEventStatusUpdate,
+    repository: Annotated[SosEventRepository, Depends(get_sos_event_repository)],
+) -> SosEvent:
+    return await update_sos_event_status(event_id, payload, repository)

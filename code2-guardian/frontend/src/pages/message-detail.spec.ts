@@ -41,6 +41,12 @@ describe('message detail page', () => {
     expect(MESSAGE_DETAIL).toContain('未找到')
   })
 
+  it('binds the empty state to the message lookup, not the SOS action card', () => {
+    // 处置区 v-if 插在消息卡与空态之间，空态若用 v-else 会错误地跟随处置区
+    expect(MESSAGE_DETAIL).toContain('v-if="!message" class="card empty"')
+    expect(MESSAGE_DETAIL).not.toContain('v-else class="card empty"')
+  })
+
   it('marks itself as demo data', () => {
     expect(MESSAGE_DETAIL).toContain('演示数据')
   })

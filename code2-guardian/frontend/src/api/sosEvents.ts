@@ -43,3 +43,23 @@ export function getSosEvents(
     },
   )
 }
+
+/**
+ * 处置 SOS 事件：走 POST /transitions 别名（微信 uni.request 不支持 PATCH），
+ * 仅转发状态推进请求给 code1（状态机唯一真源在后端）。
+ * 非法推进后端返回 409 invalid_state_transition，原样抛出由页面归一化提示。
+ */
+export function patchSosEvent(
+  id: string,
+  to: SosEventStatus,
+  note: string | undefined,
+  request: ReturnType<typeof createApiClient> = elderApiRequest,
+): Promise<SosEventDto> {
+  const body: Record<string, unknown> = { status: to }
+  if (note !== undefined) body.note = note
+  return request(`/api/v1/sos-events/${encodeURIComponent(id)}/transitions`, {
+    method: 'POST',
+    header: { 'Content-Type': 'application/json' },
+    data: JSON.stringify(body),
+  }).then(parseSosEvent)
+}

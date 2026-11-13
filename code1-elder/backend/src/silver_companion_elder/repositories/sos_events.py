@@ -49,13 +49,20 @@ class InMemorySosEventRepository:
         return self._events.get(event_id)
 
     async def update_status(
-        self, event_id: str, status: SosEventStatus, expected_status: SosEventStatus
+        self,
+        event_id: str,
+        status: SosEventStatus,
+        expected_status: SosEventStatus,
+        note: str | None = None,
     ) -> SosEvent | None:
-        """条件更新：仅当当前状态仍等于 expected_status 时前进，否则返回 None。"""
+        """条件更新：仅当当前状态仍等于 expected_status 时前进，否则返回 None。note 非 None 时一并覆盖备注。"""
         event = self._events.get(event_id)
         if event is None or event.status != expected_status:
             return None
-        updated = event.model_copy(update={"status": status})
+        updates: dict[str, object] = {"status": status}
+        if note is not None:
+            updates["note"] = note
+        updated = event.model_copy(update=updates)
         self._events[event_id] = updated
         return updated
 

@@ -26,3 +26,5 @@ class SosEvent(BaseModel):
 
 class SosEventStatusUpdate(BaseModel):
     status: SosEventStatus
+    # 处置备注（监护人标记已解决时可附一句），缺省保持原备注不变
+    note: SosNote | None = None

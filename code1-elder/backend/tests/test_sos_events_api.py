@@ -101,3 +101,26 @@ def test_update_status_validates_status_value() -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_failed"
+
+
+def test_post_transitions_alias_matches_patch_semantics() -> None:
+    # 微信小程序 uni.request 不支持 PATCH，消费端走 POST 别名（同 code3 平台约束）
+    event = _create("elder-sos-6")
+    event_id = event["id"]
+
+    processing = client.post(f"/api/v1/sos-events/{event_id}/transitions", json={"status": "processing"})
+    assert processing.status_code == 200
+    assert processing.json()["status"] == "processing"
+
+    resolved = client.post(f"/api/v1/sos-events/{event_id}/transitions", json={"status": "resolved", "note": "已电话确认"})
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "resolved"
+    assert resolved.json()["note"] == "已电话确认"
+
+    backward = client.post(f"/api/v1/sos-events/{event_id}/transitions", json={"status": "pending"})
+    assert backward.status_code == 409
+    assert backward.json() == ILLEGAL_TRANSITION
+
+    missing = client.post("/api/v1/sos-events/not-exist/transitions", json={"status": "processing"})
+    assert missing.status_code == 404
+    assert missing.json() == NOT_FOUND

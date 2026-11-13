@@ -155,4 +155,65 @@ describe('useSos api mode', () => {
     sos.cancelHelp()
     expect(state.sos).toBe('sending')
   })
+
+  it('refreshStatus pulls the latest backend status into the request timeline', async () => {
+    vi.stubEnv('VITE_SOS_DATA_MODE', 'api')
+    vi.stubEnv('VITE_ELDER_API_BASE_URL', 'http://mock-api')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/api/v1/sos-events?')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([{ id: 'sos-42', elder_id: 'elder-001', created_at: '2026-11-14T00:00:00Z', status: 'processing', note: null }]),
+          })
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'sos-42' }) })
+      }),
+    )
+    vi.resetModules()
+    const { useSos: freshUseSos } = await import('./useSos')
+    const state = makeState()
+    const sos = freshUseSos(state, () => {})
+    expect(sos.isSosApi).toBe(true)
+    state.modal = 'start'
+    await sos.startHelp()
+    const timelineBefore = state.currentRequest.timeline.length
+    await sos.refreshStatus()
+    expect(state.currentRequest.state).toContain('处理中')
+    expect(state.currentRequest.timeline.length).toBe(timelineBefore + 1)
+    expect(state.currentRequest.timeline.at(-1)?.[1]).toContain('处理进度更新')
+    expect(state.feedback).toBe('')
+  })
+
+  it('refreshStatus writes feedback on failure and ignores local demo requests', async () => {
+    vi.stubEnv('VITE_SOS_DATA_MODE', 'api')
+    vi.stubEnv('VITE_ELDER_API_BASE_URL', 'http://mock-api')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/api/v1/sos-events?')) {
+          return Promise.resolve({ ok: false, status: 500 })
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'sos-42' }) })
+      }),
+    )
+    vi.resetModules()
+    const { useSos: freshUseSos } = await import('./useSos')
+    const state = makeState()
+    const sos = freshUseSos(state, () => {})
+    state.modal = 'start'
+    await sos.startHelp()
+    await sos.refreshStatus()
+    expect(state.feedback).toContain('求助状态刷新失败')
+
+    const localState = makeState()
+    const localSos = freshUseSos(localState, () => {})
+    localState.currentRequest = { id: 'local-1' }
+    await localSos.refreshStatus()
+    expect(localState.feedback).toBe('')
+  })
 })

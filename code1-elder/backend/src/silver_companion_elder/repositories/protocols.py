@@ -40,7 +40,11 @@ class SosEventRepository(Protocol):
     async def list(self, elder_id: str | None = None) -> Sequence[SosEvent]: ...
     async def get(self, event_id: str) -> SosEvent | None: ...
     async def update_status(
-        self, event_id: str, status: SosEventStatus, expected_status: SosEventStatus
+        self,
+        event_id: str,
+        status: SosEventStatus,
+        expected_status: SosEventStatus,
+        note: str | None = None,
     ) -> SosEvent | None: ...
 
 
