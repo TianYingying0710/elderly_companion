@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // 环境变量先于被测模块载入
 vi.mock('../data/sosProvider', async () => {
@@ -8,6 +8,11 @@ vi.mock('../data/sosProvider', async () => {
 
 import { canTransition, useSos } from './useSos'
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
+})
+
 function makeState() {
   return {
     demo: true,
@@ -16,6 +21,9 @@ function makeState() {
     modal: null as string | null,
     feedback: '',
     currentRequest: null as any,
+    apiRequests: [] as any[],
+    requestsLoading: false,
+    requestsFailed: false,
     data: {
       requests: [] as any[],
       sos: {
@@ -215,5 +223,62 @@ describe('useSos api mode', () => {
     localState.currentRequest = { id: 'local-1' }
     await localSos.refreshStatus()
     expect(localState.feedback).toBe('')
+  })
+})
+
+describe('useSos request history', () => {
+  it('loads api history and clears loading/failure flags', async () => {
+    vi.stubEnv('VITE_SOS_DATA_MODE', 'api')
+    vi.stubEnv('VITE_ELDER_API_BASE_URL', 'http://mock-api')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
+      { id: 'sos-42', elder_id: 'elder-001', created_at: '2026-11-13T02:03:00Z', status: 'pending', note: '已按SOS按钮' },
+    ]), { status: 200 })))
+    vi.resetModules()
+    const { useSos: freshUseSos } = await import('./useSos')
+    const state = makeState()
+    const sos = freshUseSos(state, () => {})
+
+    await sos.loadRequests()
+
+    expect(state.apiRequests).toHaveLength(1)
+    expect(state.apiRequests[0]).toMatchObject({ id: 'sos-42', state: '已上报 · 等待处理' })
+    expect(state.requestsLoading).toBe(false)
+    expect(state.requestsFailed).toBe(false)
+    expect(state.feedback).toBe('')
+  })
+
+  it('clears stale history, marks failure and keeps the provider message', async () => {
+    vi.stubEnv('VITE_SOS_DATA_MODE', 'api')
+    vi.stubEnv('VITE_ELDER_API_BASE_URL', 'http://mock-api')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 503 })))
+    vi.resetModules()
+    const { useSos: freshUseSos } = await import('./useSos')
+    const state = makeState()
+    state.apiRequests = [{ id: 'old' }]
+    const sos = freshUseSos(state, () => {})
+
+    await sos.loadRequests()
+
+    expect(state.apiRequests).toEqual([])
+    expect(state.requestsLoading).toBe(false)
+    expect(state.requestsFailed).toBe(true)
+    expect(state.feedback).toBe('求助记录加载失败（HTTP 503）')
+  })
+
+  it('does nothing in mock mode', async () => {
+    vi.stubEnv('VITE_SOS_DATA_MODE', 'mock')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    vi.resetModules()
+    const { useSos: freshUseSos } = await import('./useSos')
+    const state = makeState()
+    const sos = freshUseSos(state, () => {})
+
+    await sos.loadRequests()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(state.apiRequests).toEqual([])
+    expect(state.requestsLoading).toBe(false)
+    expect(state.requestsFailed).toBe(false)
   })
 })

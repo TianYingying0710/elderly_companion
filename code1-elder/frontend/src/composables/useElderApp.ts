@@ -23,17 +23,19 @@ export function useElderApp() {
     modal: null as 'start' | 'cancel' | null, feedback: '', health: '尚未检查', checking: false,
     apiCourses: [] as Course[], apiCourse: null as Course | null,
     apiHistory: [] as LearningHistoryItem[], apiHistoryLoading: false, apiHistoryFailed: false,
+    apiRequests: [] as RequestRecord[], requestsLoading: false, requestsFailed: false,
   })
   const {go,back}=useNavigation(state)
   const {toggleDemo}=useDemoMode(state,demoData)
   const {send}=useChat(state)
-  const {help,startHelp,progress,cancelHelp,refreshStatus,isSosApi}=useSos(state,go)
+  const {help,startHelp,progress,cancelHelp,refreshStatus,loadRequests,isSosApi}=useSos(state,go)
   const {isApi,loadCourses,openApiCourse,recordProgress,loadLearningHistory}=useCourses(state,go)
   loadCourses()
   function openLearningHistory(){go('learning-history');loadLearningHistory()}
+  function openRequests(){go('requests');loadRequests()}
   function togglePermission(key:string){const family=state.data?.family.find(item=>item.id===state.selected);if(state.demo&&family)family.permissions[key]=!family.permissions[key]}
   function openConversation(index:number){if(!state.data)return;state.messages=cloneDemoData(state.data).conversations[index]??[];go('chat')}
   const health=useHealth(state,checkHealth).check
-  return { state, go, back, toggleDemo, send, help, startHelp, progress, cancelHelp, refreshStatus, isSosApi, health, togglePermission, openConversation, isCourseApi: isApi, loadCourses, openApiCourse, recordProgress, openLearningHistory }
+  return { state, go, back, toggleDemo, send, help, startHelp, progress, cancelHelp, refreshStatus, isSosApi, health, togglePermission, openConversation, isCourseApi: isApi, loadCourses, openApiCourse, recordProgress, openLearningHistory, openRequests }
 }
 export type ElderApp = ReturnType<typeof useElderApp>

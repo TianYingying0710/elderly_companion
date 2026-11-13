@@ -27,3 +27,8 @@ it('guards invalid SOS transitions and creates a new record after cancellation',
   app.toggleDemo(); expect(app.state.currentRequest).toBeNull()
   app.toggleDemo(); expect(app.state.data!.requests).toHaveLength(1)
 })
+it('opens the request history page through the app entry', () => {
+  const app = useElderApp()
+  app.openRequests()
+  expect(app.state.page).toBe('requests')
+})
