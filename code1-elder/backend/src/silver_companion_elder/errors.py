@@ -24,6 +24,10 @@ class SosStorageUnavailableError(Exception):
     """SOS 事件存储（SQLite）不可用。"""
 
 
+class CourseStorageUnavailableError(Exception):
+    """课程/视频/学习记录存储（SQLite）不可用。"""
+
+
 class CourseNotFoundError(Exception):
     """The requested course does not exist in the demo catalog."""
 
@@ -62,6 +66,14 @@ SOS_STORAGE_UNAVAILABLE: ErrorPayload = {
 }
 
 
+COURSE_STORAGE_UNAVAILABLE: ErrorPayload = {
+    "error": {
+        "code": "course_storage_unavailable",
+        "message": "课程存储暂不可用",
+    }
+}
+
+
 ILLEGAL_SOS_STATUS_TRANSITION: ErrorPayload = {
     "error": {
         "code": "illegal_sos_status_transition",
@@ -92,6 +104,12 @@ async def sos_storage_unavailable_handler(
     _request: Request, _error: SosStorageUnavailableError
 ) -> JSONResponse:
     return JSONResponse(status_code=503, content=SOS_STORAGE_UNAVAILABLE)
+
+
+async def course_storage_unavailable_handler(
+    _request: Request, _error: CourseStorageUnavailableError
+) -> JSONResponse:
+    return JSONResponse(status_code=503, content=COURSE_STORAGE_UNAVAILABLE)
 
 
 async def course_not_found_handler(

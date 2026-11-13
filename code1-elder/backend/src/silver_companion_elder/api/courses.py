@@ -1,12 +1,10 @@
-from typing import Annotated
+﻿from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path
 
 from silver_companion_elder.errors import CourseNotFoundError
-from silver_companion_elder.repositories.courses import (
-    InMemoryCourseRepository,
-    get_course_repository,
-)
+from silver_companion_elder.repositories.courses import get_course_repository
+from silver_companion_elder.repositories.protocols import CourseRepository
 from silver_companion_elder.schemas.courses import (
     CourseDetail,
     CourseSummary,
@@ -20,7 +18,7 @@ error_responses = {404: {"description": "课程不存在"}}
 
 @router.get("", response_model=list[CourseSummary])
 async def list_courses(
-    repository: Annotated[InMemoryCourseRepository, Depends(get_course_repository)],
+    repository: Annotated[CourseRepository, Depends(get_course_repository)],
 ) -> list[CourseSummary]:
     return await repository.list_courses()
 
@@ -28,7 +26,7 @@ async def list_courses(
 @router.post("", response_model=CourseDetail, status_code=201, responses=error_responses)
 async def create_course(
     request: CreateCourseRequest,
-    repository: Annotated[InMemoryCourseRepository, Depends(get_course_repository)],
+    repository: Annotated[CourseRepository, Depends(get_course_repository)],
 ) -> CourseDetail:
     try:
         return await repository.create_course(request)
@@ -50,7 +48,7 @@ async def create_course(
 @router.get("/{course_id}", response_model=CourseDetail, responses=error_responses)
 async def get_course(
     course_id: CourseId,
-    repository: Annotated[InMemoryCourseRepository, Depends(get_course_repository)],
+    repository: Annotated[CourseRepository, Depends(get_course_repository)],
 ) -> CourseDetail:
     course = await repository.get_course(course_id)
     if course is None:

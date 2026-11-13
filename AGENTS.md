@@ -9,7 +9,7 @@
 
 ## 当前阶段禁令
 
-- 不创建数据库文件、表、schema、迁移、初始化或 seed 脚本。2026-11-01 用户明确授权例外（仅限社区端社区服务任务）：`code3-community/backend` 允许使用 Python 标准库 `sqlite3` 与单表 `service_tasks`，建表只允许 `CREATE TABLE IF NOT EXISTS`；禁止 seed、预置数据与迁移框架；运行数据只能由用户在小程序页面主动录入且不得含真实个人信息；自动化测试数据只允许存在于测试临时数据库。2026-11-14 用户明确授权同类例外（仅限老人端 SOS 持久化）：`code1-elder/backend` 允许使用标准库 `sqlite3` 与单表 `sos_events`，同样只允许 `CREATE TABLE IF NOT EXISTS`、禁止 seed 与迁移框架，由环境变量 `SOS_DATABASE_PATH` 启用，未设置时保持进程内存存储。上述例外不解除认证、通知、RAG、老人记忆、数字画像、设备业务及社区端救援/知识/课程领域的禁令。
+- 不创建数据库文件、表、schema、迁移、初始化或 seed 脚本。2026-11-01 用户明确授权例外（仅限社区端社区服务任务）：`code3-community/backend` 允许使用 Python 标准库 `sqlite3` 与单表 `service_tasks`，建表只允许 `CREATE TABLE IF NOT EXISTS`；禁止 seed、预置数据与迁移框架；运行数据只能由用户在小程序页面主动录入且不得含真实个人信息；自动化测试数据只允许存在于测试临时数据库。2026-11-14 用户明确授权同类例外（仅限老人端 SOS 与课程持久化）：`code1-elder/backend` 允许使用标准库 `sqlite3` 与单表 `sos_events`（`SOS_DATABASE_PATH` 启用）以及三张表 `courses`/`course_videos`/`learning_records`（`ELDER_DATABASE_PATH` 启用），同样只允许 `CREATE TABLE IF NOT EXISTS`、禁止 seed 与迁移框架，未设置环境变量时保持进程内存存储，预置演示课程始终由代码提供、不落库。上述例外不解除认证、通知、RAG、老人记忆、数字画像、设备业务及社区端救援/知识/课程领域的禁令。
 - 不生成、下载、爬取或编造真实业务数据及数据集。2026-10-25 用户明确授权例外：老人端独立 demo 模块可保存带显著演示标记的虚构数据，仅供演示模式；不得作为真实 API 成功响应或数据库 seed。
 - 不用固定成功响应冒充需要数据库或外部服务的业务能力。
 - 不实现真实认证、授权、通知、求助流程、RAG、老人记忆、数字画像或设备业务。允许老人端前端纯内存模拟求助和权限交互，关闭演示模式时必须清除并隔离模拟状态。

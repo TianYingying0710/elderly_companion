@@ -2,6 +2,14 @@
 
 更新日期：2026-11-14
 
+## 2026-11-14：code1 持久化收尾——课程/视频登记/学习记录 SQLite（已提交）
+
+- **功能**：设置 `ELDER_DATABASE_PATH` 后，课程目录、视频登记（video_id → 磁盘路径）、学习记录全部落 SQLite（三张表同库，仅 `CREATE TABLE IF NOT EXISTS`，无 seed，与 SOS 仓库同模式）；未设置时保持进程内存存储，默认行为不变。**预置演示课程不落库**：始终由代码提供，读取时与库内动态课程按「预置在前、动态按插入序」合并返回，从机制上规避 seed。API 契约 payload 零改动，两端前端零改动。视频文件本体仍在 `data/uploads/videos/`（此前已落盘，本轮补的是元数据）。
+- **语义要点**：学习记录 upsert 用 `INSERT ... ON CONFLICT DO UPDATE`（`BEGIN IMMEDIATE`），course_id 可为预置或动态课程，未知课程仍 404；并发 upsert 保持单行一致；动态课程大纲以 JSON 列持久化（重启后详情页大纲不丢）；SQLite 错误统一 503 `course_storage_unavailable`（新增错误类型与 handler）。三个 API 模块的依赖注解从 `InMemoryCourseRepository` 改为 `CourseRepository` Protocol。
+- **授权记录**：2026-11-14 用户授权例外已由「仅限 SOS」扩充为「SOS + 课程三表」，已同步记入 `AGENTS.md`。
+- **验证**：elder backend 52 项全过（36 基线 + 7 SOS + 9 新增：合并语义、幽灵 video_id 拒绝、视频登记往返、upsert 仅限已知课程、并发唯一行、环境变量接线重启存活、默认内存不留库文件、存储错误 503）；变异验证（upsert 退化为裸 INSERT → 2 红 → 还原 → 52 绿）；真启动冒烟通过（:18002 + `ELDER_DATABASE_PATH`：上传视频 → 建课 → PUT 进度 45% → 杀进程重启 → 目录含动态课程、详情含大纲、学习记录 45%、视频流 200 全部存活）。测试环境：`E:\workspace\silver-companion-env`（仓库外既有 conda env，未安装任何新依赖）。
+- **欠账**：与 SOS 切片相同，小程序端人工联调待微信开发者工具验证。
+
 ## 2026-11-14：SOS 事件 SQLite 持久化（code1 后端，已提交）
 
 - **功能**：SOS 事件从进程内存升级为可选 SQLite 持久化。设置 `SOS_DATABASE_PATH` 后，`POST/GET/PATCH /api/v1/sos-events` 全部走 `repositories/sqlite_sos_events.py`（单表 `sos_events`，仅 `CREATE TABLE IF NOT EXISTS`，无 seed，模式与 code3 服务任务一致）；未设置时保持原内存存储，默认行为不变。API 契约 payload 零改动，监护人端消息中心 SOS 消费层（`data/sosEventsProvider.ts` 等，此前已合入 main）无需任何改动。

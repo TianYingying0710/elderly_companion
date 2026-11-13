@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -5,7 +6,11 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from silver_companion_elder.errors import CourseNotFoundError
+from silver_companion_elder.errors import (
+    CourseNotFoundError,
+    CourseStorageUnavailableError,
+)
+from silver_companion_elder.repositories.protocols import CourseRepository
 from silver_companion_elder.schemas.courses import (
     CourseDetail,
     CourseSummary,
@@ -14,8 +19,11 @@ from silver_companion_elder.schemas.courses import (
 from silver_companion_elder.schemas.learning import LearningRecord
 
 # 以下课程条目为虚构演示数据（演示阶段预置，不来自任何真实内容源）；
-# 进程内存储，服务重启后学习记录、社区端新建课程与视频文件记录清空、
-# 课程目录随演示数据重建。视频文件本体存放在 backend/data/uploads/videos/（不入 git）。
+# 默认进程内存储。设置 ELDER_DATABASE_PATH 后改用 SQLite 持久化
+# （动态课程、视频登记、学习记录落库，预置演示课程仍由代码提供、不 seed）。
+# 视频文件本体存放在 backend/data/uploads/videos/（不入 git）。
+
+ELDER_DATABASE_PATH_ENV = "ELDER_DATABASE_PATH"
 
 VIDEO_STORAGE_DIR = Path(__file__).resolve().parents[3] / "data" / "uploads" / "videos"
 
@@ -155,6 +163,25 @@ class InMemoryCourseRepository:
 
 
 @lru_cache
-def get_course_repository() -> InMemoryCourseRepository:
-    """FastAPI 依赖：进程内单例仓库。"""
+def get_course_repository() -> CourseRepository:
+    """FastAPI 依赖：进程内单例仓库。
+
+    设置 ELDER_DATABASE_PATH 时使用 SQLite 持久化（2026-11-14 用户授权例外，
+    与 SOS 仓库同模式）；未设置时保持进程内存存储，重启即清。
+    """
+    raw = os.getenv(ELDER_DATABASE_PATH_ENV, "").strip()
+    if raw:
+        from silver_companion_elder.repositories.sqlite_courses import (
+            SqliteCourseRepository,
+        )
+
+        path = Path(raw)
+        try:
+            # 只创建已配置数据库文件的父目录，失败按 503 处理。
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise CourseStorageUnavailableError("course database directory is not usable") from error
+        repository = SqliteCourseRepository(path)
+        repository.initialize()
+        return repository
     return InMemoryCourseRepository()
