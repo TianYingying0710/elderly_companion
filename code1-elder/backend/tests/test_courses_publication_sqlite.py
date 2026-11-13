@@ -152,6 +152,14 @@ def test_in_memory_publication_matches_sqlite_semantics() -> None:
     created = run(repository.create_course(make_request()))
     assert created.status == CourseStatus.published
     assert created.editable is True
+    assert (
+        run(
+            repository.set_publication(
+                created.id, CourseStatus.published, CourseStatus.published
+            )
+        )
+        is None
+    )
 
     hidden = run(
         repository.set_publication(
@@ -205,4 +213,5 @@ def test_concurrent_unpublish_only_one_wins(tmp_path) -> None:
     for thread in threads:
         thread.join()
 
+    assert len(results) == 2
     assert sum(result is not None for result in results) == 1
