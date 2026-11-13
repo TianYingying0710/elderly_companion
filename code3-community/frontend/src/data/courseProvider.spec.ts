@@ -5,8 +5,9 @@ import {
   createCourseCatalogProvider,
   createMockCourseCatalogProvider,
 } from './courseProvider'
+import type { CourseSummaryDto } from '../types/elderCourses'
 
-const dto = {
+const dto: CourseSummaryDto = {
   id: 'course-1',
   title: '智能手机基础操作',
   category: '数字素养',
@@ -25,6 +26,7 @@ describe('courseProvider', () => {
     expect(courses.length).toBeGreaterThan(0)
     expect(courses.every((course) => course.description.includes('演示数据'))).toBe(true)
     expect(courses.every((course) => !course.hasVideo)).toBe(true)
+    expect(courses.every((course) => course.status === 'published' && course.editable === false)).toBe(true)
   })
 
   it('api provider 映射 DTO 到视图', async () => {
