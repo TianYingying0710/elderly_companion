@@ -53,4 +53,22 @@ describe('courseProvider（老人端）', () => {
     expect(createCourseProvider().mode).toBe('mock')
     vi.unstubAllEnvs()
   })
+
+  it('api provider 合并课程与学习记录；mock 返回空历史', async () => {
+    const record = { course_id: 'course-1', progress_percent: 40, updated_at: '2026-11-13T02:03:00Z' }
+    const fetchFn = vi.fn(async (url: string) =>
+      url.endsWith('/learning-records')
+        ? new Response(JSON.stringify([record]), { status: 200 })
+        : new Response(JSON.stringify([detail]), { status: 200 }),
+    )
+    const history = await createApiCourseProvider(fetchFn).learningHistory()
+    expect(history).toHaveLength(1)
+    expect(history[0]).toMatchObject({
+      progressPercent: 40,
+      updatedAt: '2026-11-13T02:03:00Z',
+      course: { id: 'course-1', title: '智能手机基础操作' },
+    })
+    expect(fetchFn).toHaveBeenCalledWith(expect.stringContaining('/api/v1/learning-records'))
+    await expect(createMockCourseProvider().learningHistory()).resolves.toEqual([])
+  })
 })

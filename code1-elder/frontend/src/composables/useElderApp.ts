@@ -2,7 +2,7 @@ import { reactive } from 'vue'
 import { demoData, type DemoData } from '../demo/data'
 import { checkHealth } from '../api/client'
 import type { Page } from '../types/navigation'
-import type { ChatMessage, Course, RequestRecord, SosState } from '../types/domain'
+import type { ChatMessage, Course, LearningHistoryItem, RequestRecord, SosState } from '../types/domain'
 import { useNavigation } from './useNavigation'
 import { useHealth } from './useHealth'
 import { useChat } from './useChat'
@@ -22,16 +22,18 @@ export function useElderApp() {
     sos: null as SosState | null, reached: false, currentRequest: null as RequestRecord | null,
     modal: null as 'start' | 'cancel' | null, feedback: '', health: '尚未检查', checking: false,
     apiCourses: [] as Course[], apiCourse: null as Course | null,
+    apiHistory: [] as LearningHistoryItem[],
   })
   const {go,back}=useNavigation(state)
   const {toggleDemo}=useDemoMode(state,demoData)
   const {send}=useChat(state)
   const {help,startHelp,progress,cancelHelp,refreshStatus,isSosApi}=useSos(state,go)
-  const {isApi,loadCourses,openApiCourse,recordProgress}=useCourses(state,go)
+  const {isApi,loadCourses,openApiCourse,recordProgress,loadLearningHistory}=useCourses(state,go)
   loadCourses()
+  function openLearningHistory(){go('learning-history');loadLearningHistory()}
   function togglePermission(key:string){const family=state.data?.family.find(item=>item.id===state.selected);if(state.demo&&family)family.permissions[key]=!family.permissions[key]}
   function openConversation(index:number){if(!state.data)return;state.messages=cloneDemoData(state.data).conversations[index]??[];go('chat')}
   const health=useHealth(state,checkHealth).check
-  return { state, go, back, toggleDemo, send, help, startHelp, progress, cancelHelp, refreshStatus, isSosApi, health, togglePermission, openConversation, isCourseApi: isApi, loadCourses, openApiCourse, recordProgress }
+  return { state, go, back, toggleDemo, send, help, startHelp, progress, cancelHelp, refreshStatus, isSosApi, health, togglePermission, openConversation, isCourseApi: isApi, loadCourses, openApiCourse, recordProgress, openLearningHistory }
 }
 export type ElderApp = ReturnType<typeof useElderApp>

@@ -1,8 +1,8 @@
 /** 课程 provider：mock/api 工厂（低耦合原则 2/3；默认 mock，页面演示行为不变） */
 
-import type { Course } from '../types/domain'
-import { getCourses, getCourseDetail, updateLearningRecord, type FetchLike } from '../api/elderCourses'
-import { toDomainCourse, toDomainCourseDetail } from '../mappers/courseMapper'
+import { getCourses, getCourseDetail, getLearningRecords, updateLearningRecord, type FetchLike } from '../api/elderCourses'
+import type { Course, LearningHistoryItem } from '../types/domain'
+import { toDomainCourse, toDomainCourseDetail, toLearningHistory } from '../mappers/courseMapper'
 
 export type CourseSourceMode = 'mock' | 'api'
 
@@ -14,19 +14,22 @@ export interface CourseProvider {
   detail: (courseId: string) => Promise<Course>
   /** api 模式：写回学习进度（0-100 整数）；mock 模式为空实现 */
   updateProgress: (courseId: string, progressPercent: number) => Promise<void>
+  /** api 模式：学习记录（课程目录 + 记录合并，按更新时间倒序）；mock 返回空数组 */
+  learningHistory: () => Promise<LearningHistoryItem[]>
 }
 
 export function createApiCourseProvider(fetchFn: FetchLike = fetch): CourseProvider {
+  const listCourses = async () => (await getCourses(fetchFn)).map((dto, index) => toDomainCourse(dto, index))
   return {
     mode: 'api',
-    list: async () => (await getCourses(fetchFn)).map((dto, index) => toDomainCourse(dto, index)),
-    detail: async (courseId) => {
-      // 请求失败（不存在/网络错误）直接抛出，由 composable 统一反馈
-      const dto = await getCourseDetail(courseId, fetchFn)
-      return toDomainCourseDetail(dto, 0)
-    },
+    list: listCourses,
+    detail: async (courseId) => toDomainCourseDetail(await getCourseDetail(courseId, fetchFn), 0),
     updateProgress: async (courseId, progressPercent) => {
       await updateLearningRecord(courseId, progressPercent, fetchFn)
+    },
+    learningHistory: async () => {
+      const [courses, records] = await Promise.all([listCourses(), getLearningRecords(fetchFn)])
+      return toLearningHistory(courses, records)
     },
   }
 }
@@ -37,6 +40,7 @@ export function createMockCourseProvider(): CourseProvider {
     list: async () => [],
     detail: async () => { throw new Error('mock 模式不提供课程详情') },
     updateProgress: async () => undefined,
+    learningHistory: async () => [],
   }
 }
 
