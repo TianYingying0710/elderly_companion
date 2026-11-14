@@ -60,6 +60,27 @@ for _spec in SERVICE_SPECS:
 EXPECTED_CHECKS = 33
 
 
+class StepReporter(support.Reporter):
+    """在计数之外记录已通过的步骤号，并要求每个步骤号只通过一次。
+
+    只核对总数无法发现「某步重复、另一步漏跑」的相互抵消；这里记录步骤号，
+    重复即失败（消息带编号），汇总前再要求去重后的步骤数与检查数相等。
+    不维护写死的 33 个编号清单，避免与场景实现重复维护。
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.steps: list[str] = []
+
+    def passed(self, step: str, description: str) -> None:
+        if step in self.steps:
+            raise AssertionError(
+                f"[STEPS] acceptance step passed more than once: {step}"
+            )
+        super().passed(step, description)
+        self.steps.append(step)
+
+
 def _spec(name: str) -> ServiceSpec:
     return next(spec for spec in SERVICE_SPECS if spec.name == name)
 
@@ -145,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     if not (root / "code1-elder").is_dir():
         parser.error(f"Repository root not found: {root}")
 
-    reporter = support.Reporter()
+    reporter = StepReporter()
     # 临时目录与基线快照都在 try 内创建：任何早期异常也能走到 finally 清理。
     temp_dir: Path | None = None
     services: dict[str, support.RunningService] = {}
@@ -188,10 +209,13 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         _check_isolation(root, database_paths, baseline, reporter)
-        if reporter.checks != EXPECTED_CHECKS:
+        # 总数相等不代表同一组步骤：重复一步再漏跑一步同样能凑到 33。
+        unique_steps = len(set(reporter.steps))
+        if reporter.checks != EXPECTED_CHECKS or unique_steps != EXPECTED_CHECKS:
             raise AssertionError(
                 "[COUNT] acceptance check count mismatch: "
-                f"expected {EXPECTED_CHECKS}, got {reporter.checks}"
+                f"expected {EXPECTED_CHECKS} checks over {EXPECTED_CHECKS} unique "
+                f"steps, got {reporter.checks} checks over {unique_steps} unique steps"
             )
         print(f"ACCEPTANCE PASS ({reporter.checks} checks)", flush=True)
         return 0

@@ -34,11 +34,17 @@ foreach ($line in $selfTestOutput) { Write-Host $line }
 
 if ($selfTestExitCode -ne 0) { exit $selfTestExitCode }
 
-# Trusting only the exit code is not enough: with zero collected tests unittest
-# still exits 0. Require its own summary, without hard-coding a test count.
+# Trusting only the exit code is not enough: some unittest versions exit 0 with
+# zero collected tests. Require its own summary with a positive count (so
+# "Ran 0 tests in 0.000s" is rejected) and refuse the explicit marker too.
+# The test count itself stays un-hardcoded.
 $selfTestText = $selfTestOutput -join "`n"
-if ($selfTestText -notmatch '(?m)^Ran \d+ tests? in ') {
-    [Console]::Error.WriteLine('verify-acceptance: support self-test printed no "Ran N tests" summary; refusing to continue.')
+if ($selfTestText -match 'NO TESTS RAN') {
+    [Console]::Error.WriteLine('verify-acceptance: support self-test reported NO TESTS RAN; refusing to continue.')
+    exit 1
+}
+if ($selfTestText -notmatch '(?m)^Ran ([1-9]\d*) tests? in ') {
+    [Console]::Error.WriteLine('verify-acceptance: support self-test printed no positive "Ran N tests" summary (zero collected tests are rejected); refusing to continue.')
     exit 1
 }
 $summaryLines = @($selfTestOutput | Where-Object { $_.Trim() -ne '' })

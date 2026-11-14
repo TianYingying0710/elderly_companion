@@ -9,11 +9,15 @@ $originalLogFile = $env:VERIFY_ACCEPTANCE_TEST_LOG
 $originalUnittestExit = $env:VERIFY_ACCEPTANCE_TEST_UNITTEST_EXIT
 $originalOrchestratorExit = $env:VERIFY_ACCEPTANCE_TEST_ORCHESTRATOR_EXIT
 $originalQuiet = $env:VERIFY_ACCEPTANCE_TEST_QUIET
+$originalZeroTests = $env:VERIFY_ACCEPTANCE_TEST_ZERO_TESTS
+$originalNoTestsRan = $env:VERIFY_ACCEPTANCE_TEST_NO_TESTS_RAN
 
 function Reset-FakePythonControls {
     $env:VERIFY_ACCEPTANCE_TEST_UNITTEST_EXIT = $null
     $env:VERIFY_ACCEPTANCE_TEST_ORCHESTRATOR_EXIT = $null
     $env:VERIFY_ACCEPTANCE_TEST_QUIET = $null
+    $env:VERIFY_ACCEPTANCE_TEST_ZERO_TESTS = $null
+    $env:VERIFY_ACCEPTANCE_TEST_NO_TESTS_RAN = $null
 }
 
 function Reset-InvocationLog {
@@ -35,9 +39,21 @@ try {
         'if errorlevel 1 goto orchestrator',
         'if defined VERIFY_ACCEPTANCE_TEST_UNITTEST_EXIT exit /b %VERIFY_ACCEPTANCE_TEST_UNITTEST_EXIT%',
         'if defined VERIFY_ACCEPTANCE_TEST_QUIET exit /b 0',
+        'if defined VERIFY_ACCEPTANCE_TEST_ZERO_TESTS goto zerotests',
+        'if defined VERIFY_ACCEPTANCE_TEST_NO_TESTS_RAN goto notestsran',
         'echo Ran 17 tests in 0.001s',
         'echo.',
         'echo OK',
+        'exit /b 0',
+        ':zerotests',
+        'echo Ran 0 tests in 0.000s',
+        'echo.',
+        'echo OK',
+        'exit /b 0',
+        ':notestsran',
+        'echo Ran 0 tests in 0.000s',
+        'echo.',
+        'echo NO TESTS RAN',
         'exit /b 0',
         ':orchestrator',
         'if defined VERIFY_ACCEPTANCE_TEST_ORCHESTRATOR_EXIT exit /b %VERIFY_ACCEPTANCE_TEST_ORCHESTRATOR_EXIT%',
@@ -102,7 +118,38 @@ try {
         throw "Orchestrator ran after a summary-less self-test; invocations: $($lines.Count)."
     }
 
-    # Path 4: a non-zero orchestrator exit code must be propagated.
+    # Path 4: a self-test that runs zero tests and still prints OK must not pass.
+    Reset-FakePythonControls
+    Reset-InvocationLog
+    $env:VERIFY_ACCEPTANCE_TEST_ZERO_TESTS = '1'
+    & $verifyScript -Python $fakePython
+    $zeroTestExit = $LASTEXITCODE
+    if ($zeroTestExit -ne 1) {
+        throw "Expected exit code 1 when the self-test runs zero tests, got $zeroTestExit."
+    }
+    $lines = @(Get-InvocationLines)
+    if ($lines.Count -ne 1) {
+        throw "Orchestrator ran after a zero-test self-test; invocations: $($lines.Count)."
+    }
+    if ($lines[0] -notmatch '-m unittest discover') {
+        throw "Zero-test run did not start with the support self-test: $($lines[0])"
+    }
+
+    # Path 5: an explicit "NO TESTS RAN" marker is rejected as well.
+    Reset-FakePythonControls
+    Reset-InvocationLog
+    $env:VERIFY_ACCEPTANCE_TEST_NO_TESTS_RAN = '1'
+    & $verifyScript -Python $fakePython
+    $noTestsExit = $LASTEXITCODE
+    if ($noTestsExit -ne 1) {
+        throw "Expected exit code 1 when the self-test reports NO TESTS RAN, got $noTestsExit."
+    }
+    $lines = @(Get-InvocationLines)
+    if ($lines.Count -ne 1) {
+        throw "Orchestrator ran after a NO TESTS RAN self-test; invocations: $($lines.Count)."
+    }
+
+    # Path 6: a non-zero orchestrator exit code must be propagated.
     Reset-FakePythonControls
     Reset-InvocationLog
     $env:VERIFY_ACCEPTANCE_TEST_ORCHESTRATOR_EXIT = '7'
@@ -136,6 +183,8 @@ finally {
     $env:VERIFY_ACCEPTANCE_TEST_UNITTEST_EXIT = $originalUnittestExit
     $env:VERIFY_ACCEPTANCE_TEST_ORCHESTRATOR_EXIT = $originalOrchestratorExit
     $env:VERIFY_ACCEPTANCE_TEST_QUIET = $originalQuiet
+    $env:VERIFY_ACCEPTANCE_TEST_ZERO_TESTS = $originalZeroTests
+    $env:VERIFY_ACCEPTANCE_TEST_NO_TESTS_RAN = $originalNoTestsRan
     if (Test-Path -LiteralPath $testRoot) {
         Remove-Item -LiteralPath $testRoot -Recurse -Force
     }

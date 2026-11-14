@@ -75,7 +75,7 @@ python scripts/acceptance/run_acceptance.py --python <python.exe> --root <repo-r
 & $Python (Join-Path $root 'scripts\acceptance\run_acceptance.py') --python $Python --root $root
 ```
 
-入口不会只信任自测的退出码：它捕获 unittest 输出，缺少 `Ran N tests` 摘要（例如收集到 0 个用例）或最后一行不是 `OK` 时同样退出码 1，且不启动编排器；不硬编码用例条数。
+入口不会只信任自测的退出码：它捕获 unittest 输出，只接受 `Ran <N> tests in …` 且 N 为正整数的摘要——`Ran 0 tests` 这类零用例运行同样被拒绝，显式的 `NO TESTS RAN` 标记也直接拒绝；缺少摘要或最后一行不是 `OK` 时同样退出码 1，且不启动编排器；不硬编码用例条数。
 
 ### 5.1 模块边界与依赖方向
 
@@ -212,7 +212,7 @@ SERVICE_SPECS = [
 
 数据全部带本次运行的唯一 `run-id`（`acceptance-<hex>`）：`elder_id`、课程标题、服务任务标题与备注都不依赖演示预置内容，跨次运行也不会互相识别。G01/G02 是隔离守护步骤，不是业务步骤，失败同样退出码 1。总计 33 项检查。
 
-S04a–S04f 与 S18a–S18e 使用 S03 创建的动态课程，不读取预置课程 id：下架、隐藏、重复下架拒绝（`409 illegal_course_publication`）都在同一门课程上完成，重启后先证明下架状态持久，再重新发布并确认目录与详情恢复。S19 继续验证学习记录在下架与重启后仍为 42。编排器在汇总前显式核对检查数（`EXPECTED_CHECKS = 33`），数量不符即退出码 1，且不打印 `ACCEPTANCE PASS`。
+S04a–S04f 与 S18a–S18e 使用 S03 创建的动态课程，不读取预置课程 id：下架、隐藏、重复下架拒绝（`409 illegal_course_publication`）都在同一门课程上完成，重启后先证明下架状态持久，再重新发布并确认目录与详情恢复。S19 继续验证学习记录在下架与重启后仍为 42。编排器在汇总前显式核对检查数与步骤唯一性（`EXPECTED_CHECKS = 33`）：同一个步骤号重复通过立即失败并报 `[STEPS]`（消息含该编号）；汇总前再要求检查总数与去重后的步骤数都为 33，不符报 `[COUNT]`。不维护写死的编号清单，「无重复 + 总数为 33」即可发现「重复一步又漏跑一步」的相互抵消。任一情况都退出码 1，且不打印 `ACCEPTANCE PASS`。
 
 ## 8. 失败与清理语义
 
@@ -238,7 +238,7 @@ S04a–S04f 与 S18a–S18e 使用 S03 创建的动态课程，不读取预置�
 
 既有 `scripts/tests/test-verify-framework.ps1` 完全不受影响（`verify-framework.ps1` 未修改）。
 
-`scripts/tests/test-verify-acceptance.ps1` 新增接线测试：用假 Python 记录命令行参数，确认 `verify-acceptance.ps1` 以仓库根为 `--root`、把解析后的 Python 以 `--python` 传入；同时覆盖失败路径：自测失败时不调用编排器、自测缺少 `Ran N tests` 摘要时失败、编排器非零退出码原样透传。
+`scripts/tests/test-verify-acceptance.ps1` 新增接线测试：用假 Python 记录命令行参数，确认 `verify-acceptance.ps1` 以仓库根为 `--root`、把解析后的 Python 以 `--python` 传入；同时覆盖失败路径：自测失败时不调用编排器、自测无输出或只输出 `Ran 0 tests` + `OK`（退出码 0）时失败、自测报 `NO TESTS RAN` 时失败、编排器非零退出码原样透传。
 
 ### CI 集成（仓库当前无 CI 配置）
 
