@@ -4,7 +4,7 @@
 
 ## 一、项目一句话现状
 
-银龄伴三端（老人 Vue3/Capacitor、监护人 uni-app 小程序、社区端 uni-app 小程序）+ 三后端（code1 :8001 单一内容源 / code2 :8002 / code3 :8003）。SOS、课程、视频、学习记录四域已实现并支持 SQLite 持久化；SOS 处置闭环（`ba188ae`：监护人端处置 + 老人端进度反馈）与老人端学习记录页接真实 GET 接口（`a81da60` 功能切片 + `e249927` 加载/失败状态与回归测试，零契约变更）均已完成并提交。老人端「我的求助」页已接真实 SOS 列表（零契约变更）。课程上下架已真实化：code1 新增 `status`/`editable` 与 `POST /api/v1/courses/{course_id}/publication`，SQLite 增第四张表 `course_publications`，社区端教学页可下架/重新发布，老人端前端零改动；code3 的课程域仍保持 501。跨端验收基座已落地，33 项真实链路检查与 `verify-framework.ps1` 组成双门禁；本切片课程上下架的重启持久化（原 Task 6）已由这 33 项验收覆盖。
+银龄伴三端（老人 Vue3/Capacitor、监护人 uni-app 小程序、社区端 uni-app 小程序）+ 三后端（code1 :8001 单一内容源 / code2 :8002 / code3 :8003）。SOS、课程、视频、学习记录四域已实现并支持 SQLite 持久化；SOS 处置闭环（`ba188ae`：监护人端处置 + 老人端进度反馈）与老人端学习记录页接真实 GET 接口（`a81da60` 功能切片 + `e249927` 加载/失败状态与回归测试，零契约变更）均已完成并提交。老人端「我的求助」页已接真实 SOS 列表（零契约变更）。课程上下架已真实化：code1 新增 `status`/`editable` 与 `POST /api/v1/courses/{course_id}/publication`，SQLite 增第四张表 `course_publications`，社区端教学页可下架/重新发布，老人端前端零改动；code3 的课程域仍保持 501。跨端验收基座已落地，33 项真实链路检查与 `verify-framework.ps1` 组成双门禁；本切片课程上下架的重启持久化（原 Task 6）已由这 33 项验收覆盖。本切片提交尚未推送；推送由用户执行（`git push origin main`，禁止 force push）。
 
 ## 二、SOS 处置闭环（已提交，`ba188ae`）
 
