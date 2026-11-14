@@ -30,7 +30,10 @@
 
 ```powershell
 .\scripts\verify-framework.ps1 -Python "<银龄伴 Python 可执行文件>"
+.\scripts\verify-acceptance.ps1 -Python "<银龄伴 Python 可执行文件>"
 ```
 
 需要同时验证 Android 原生构建时额外传入 `-IncludeAndroid`；该操作要求外部 Android SDK、JDK 和 Gradle 下载源可用。
+
+发布门禁由两条互不调用的命令组成：`verify-framework.ps1` 与 `verify-acceptance.ps1` 均成功才算通过。后者启动真实三后端并使用临时 SQLite 库，不读写开发者数据库；它不修改也不调用 `verify-framework.ps1`。
 

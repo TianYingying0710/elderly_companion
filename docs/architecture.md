@@ -32,6 +32,13 @@ code2/code3 后端其余域均为契约骨架：code3 的救援/知识/课程 9 
 
 老人端内部现按页面、领域类型和组合函数分层：公共组件依赖 `types` 中的稳定类型，不依赖 `demo/data.ts`；`useElderApp` 只作为导航、演示、聊天、求助和健康检查模块的组装边界。Android 普通构建与设备签名/覆盖安装验收相互独立。
 
+## 验证层
+
+- 单测层：三端前端 Vitest、四个 Python 包 pytest。
+- 构建层：`scripts/verify-framework.ps1` 串起三端测试与 build/type-check。
+- 真实链路层（2026-11-14）：`scripts/verify-acceptance.ps1` 启动 code1/code2/code3 三个 FastAPI 子进程，把 `SOS_DATABASE_PATH` / `ELDER_DATABASE_PATH` / `COMMUNITY_DATABASE_PATH` 全部指向 `tempfile.mkdtemp` 下的临时库，在动态 `127.0.0.1` 端口上验证 SOS、课程、学习记录、课程上下架与社区服务任务，并通过重启进程验证持久化。验收不 import 后端代码、不直接读表、不依赖预置课程，结束后删除临时目录。
+- 两个验证入口互不调用，发布门禁要求两者都通过；`verify-framework.ps1` 保持零改动。
+
 ## 监护人端前端分层
 
 `code2-guardian/frontend` 的四页 UI（index 首页 / advice AI 建议 / messages 消息中心 / profile 我的）自 2026-11 起逐步从纯 mock 原型演进为 Provider 驱动，目录组织如下：
