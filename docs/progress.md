@@ -19,7 +19,7 @@
 - **契约变更（显式报备）**：`CourseSummary` 新增 `status`、`editable`；新增 `POST /api/v1/courses/{course_id}/publication`；新增错误码 `409 course_not_editable`、`409 illegal_course_publication`。
 - **授权记录**：2026-11-14 用户授权例外扩展为 code1 四表（`courses`/`course_videos`/`learning_records`/`course_publications`），已同步记入 `AGENTS.md`；仍只允许 `CREATE TABLE IF NOT EXISTS`，禁止 seed 与迁移框架。
 - **验证**：`scripts/verify-framework.ps1` 全绿——code1 后端 73 项、code2 后端 8 项、code3 后端 80 项、code4 契约 3 项；老人端前端 99 项、监护人端 160 项、社区端 148 项；三端 type-check 0 错，老人端 `vite build` 与两端 `build:mp-weixin` 均通过。
-- **欠账**：跨端验收基座（`scripts/acceptance/`）尚未实现，上下架的重启持久化与跨端检查未纳入自动化验收，待验收基座落地后补做；教学页上下架的人工联调仍需微信开发者工具验证。
+- **欠账**：跨端验收基座已在本页上方「跨端自动化验收基座」章节补齐，上下架重启持久化与跨端检查已纳入 33 项自动化验收；教学页上下架的人工联调仍需微信开发者工具验证。
 
 ## 2026-11-14：老人端「我的求助」接真实 SOS 列表（前端切片）
 

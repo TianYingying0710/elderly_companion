@@ -37,6 +37,6 @@
 
 - 事实源：`e:\c2--\code`（main）；开发者工具产物目录：`E:\c2--\code-guardian-hardening\code2-guardian\frontend\dist\build\mp-weixin`
 - 文档：`docs/api.md`、`docs/architecture.md`（2026-11-14 已与代码同步）、`docs/progress.md`
-- 验证入口：`scripts/verify-framework.ps1`（三端测试与构建）、`scripts/verify-acceptance.ps1`（真实三后端 + 临时库 + 重启持久化）
+- 验证入口：`scripts/verify-framework.ps1`（三端测试与构建）、`scripts/verify-acceptance.ps1`（真实三后端 + 临时库 + 重启持久化）；接线自测手动运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test-verify-acceptance.ps1`
 - 验收基座：`scripts/acceptance/`（`support.py` 支撑层、`scenarios.py` 场景层、`run_acceptance.py` 编排器、`tests/` 支撑层单测）
 - 环境变量：`VITE_SOS_DATA_MODE` / `VITE_COURSE_DATA_MODE` / `VITE_HEALTH_DATA_MODE`（默认 mock）、`VITE_ELDER_API_BASE_URL`（跨直连 :8001）、`SOS_DATABASE_PATH` / `ELDER_DATABASE_PATH` / `COMMUNITY_DATABASE_PATH`（持久化开关）
