@@ -196,6 +196,52 @@ describe('useSos api mode', () => {
     expect(state.feedback).toBe('')
   })
 
+  it('refreshStatus 带出社区端写入的最新处置备注，且不重复堆叠', async () => {
+    vi.stubEnv('VITE_SOS_DATA_MODE', 'api')
+    vi.stubEnv('VITE_ELDER_API_BASE_URL', 'http://mock-api')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/api/v1/sos-events?')) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([
+                {
+                  id: 'sos-42',
+                  elder_id: 'elder-001',
+                  created_at: '2026-11-14T00:00:00Z',
+                  status: 'resolved',
+                  note: '已联系家属，确认平安',
+                },
+              ]),
+          })
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 'sos-42' }) })
+      }),
+    )
+    vi.resetModules()
+    const { useSos: freshUseSos } = await import('./useSos')
+    const state = makeState()
+    const sos = freshUseSos(state, () => {})
+    state.modal = 'start'
+    await sos.startHelp()
+
+    await sos.refreshStatus()
+
+    expect(state.currentRequest.state).toBe('已解决')
+    const lines = state.currentRequest.timeline.map((entry: string[]) => entry[1])
+    expect(lines.some((line: string) => line.includes('已联系家属，确认平安'))).toBe(true)
+
+    await sos.refreshStatus()
+    expect(
+      state.currentRequest.timeline.filter((entry: string[]) =>
+        entry[1].includes('已联系家属，确认平安'),
+      ),
+    ).toHaveLength(1)
+  })
+
   it('refreshStatus writes feedback on failure and ignores local demo requests', async () => {
     vi.stubEnv('VITE_SOS_DATA_MODE', 'api')
     vi.stubEnv('VITE_ELDER_API_BASE_URL', 'http://mock-api')

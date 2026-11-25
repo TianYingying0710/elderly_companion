@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { computed, onUnmounted, ref } from 'vue'
+import { onHide, onShow } from '@dcloudio/uni-app'
 import AppToast from '../../components/AppToast.vue'
 import BottomSheet from '../../components/BottomSheet.vue'
 import PageHeader from '../../components/PageHeader.vue'
 import ScreenIdentity from '../../components/ScreenIdentity.vue'
 import { useToast } from '../../composables/useToast'
 import { useSosEvents } from '../../composables/useSosEvents'
+import { nextSosStatus, sosActionLabel } from '../../domain/sosFlow'
 import { RESCUE_STEPS, flowIndex, isTerminal, nextStatus, requiresResult, stamp } from '../../domain/rescueFlow'
 import { createIncidents, createSimIncident } from '../../mock/community'
 import type { RescueIncident } from '../../types/community'
@@ -15,13 +16,47 @@ import type { SosEventView } from '../../types/sosEvents'
 const sosStore = useSosEvents()
 const isApiMode = sosStore.mode === 'api'
 const openApiEvent = ref<SosEventView | null>(null)
+const apiNoteDraft = ref('')
 
+// API 模式：页面可见即开始短轮询（8 秒），隐藏或卸载立即停止，计时器不叠加。
 onShow(() => {
-  if (isApiMode) void sosStore.refresh()
+  if (isApiMode) sosStore.startPolling()
 })
+
+onHide(() => {
+  sosStore.stopPolling()
+})
+
+onUnmounted(() => {
+  sosStore.stopPolling()
+})
+
+function manualRefresh() {
+  void sosStore.refresh()
+}
 
 function openApiDetail(id: string) {
   openApiEvent.value = sosStore.events.value.find((event) => event.id === id) ?? null
+  apiNoteDraft.value = ''
+  sosStore.clearActionError()
+}
+
+const apiNextLabel = computed(() =>
+  openApiEvent.value ? sosActionLabel(openApiEvent.value.status) : null,
+)
+
+async function advanceApiEvent() {
+  const target = openApiEvent.value
+  if (!target) return
+  const next = nextSosStatus(target.status)
+  if (!next) return
+  const note = next === 'resolved' ? apiNoteDraft.value.trim() : ''
+  const ok = await sosStore.transition(target.id, next, note || undefined)
+  if (!ok) return
+  // 用刷新后的同一事件替换详情，详情不停留在旧状态。
+  openApiEvent.value = sosStore.events.value.find((event) => event.id === target.id) ?? null
+  apiNoteDraft.value = ''
+  tip(next === 'resolved' ? '已标记为已完成处理' : '已开始处理')
 }
 
 const GUARDIAN_LABELS = ['已通知', '已查看', '已联系老人']
@@ -32,7 +67,12 @@ const resultDraft = ref('')
 const simSeq = ref(0)
 const { toastText, tip } = useToast()
 
-const pendingCount = computed(() => incidents.value.filter((item) => item.status === '待响应').length)
+// API 模式只统计后端 pending 事件；mock 模式沿用本地演示事件统计。
+const pendingCount = computed(() =>
+  isApiMode
+    ? sosStore.pendingCount.value
+    : incidents.value.filter((item) => item.status === '待响应').length,
+)
 const current = computed(() => incidents.value.find((item) => item.id === openId.value) ?? null)
 const currentIndex = computed(() => (current.value ? flowIndex(current.value.status) : 0))
 const actionLabel = computed(() => RESCUE_STEPS[currentIndex.value].action)
@@ -124,19 +164,23 @@ function simulate() {
     <PageHeader title="救援处置" subtitle="及时处理社区紧急求助">
       <template #action>
         <view class="count-pill">{{ pendingCount }} 个待响应</view>
-        <view class="simulate" @tap="simulate">＋ 模拟新求助</view>
+        <view v-if="isApiMode" class="simulate" @tap="manualRefresh">刷新</view>
+        <view v-else class="simulate" @tap="simulate">＋ 模拟新求助</view>
       </template>
     </PageHeader>
 
     <view class="demo-banner">
       {{ isApiMode
-        ? '演示环境：实时 SOS 事件来自本地演示后端（elder-001），非真实报警'
+        ? '演示环境：实时 SOS 事件来自本地演示后端（elder-001），页面每 8 秒轮询一次，非真实报警'
         : '演示数据：本页老人信息与事件均为虚构示例，仅用于界面演示' }}
     </view>
 
-    <view v-if="sosStore.errorMessage.value" class="api-error">加载失败：{{ sosStore.errorMessage.value }}</view>
+    <view v-if="sosStore.errorMessage.value" class="api-error">{{ sosStore.errorMessage.value }}</view>
 
     <view v-if="isApiMode" class="rescue-list">
+      <view v-if="sosStore.loading.value && sosStore.events.value.length === 0" class="api-empty">
+        加载中…
+      </view>
       <view
         v-for="event in sosStore.events.value"
         :key="event.id"
@@ -254,7 +298,28 @@ function simulate() {
         <view class="meta">{{ openApiEvent.time }} · 软件 SOS · {{ openApiEvent.id }}</view>
         <view v-if="openApiEvent.note" class="reason">{{ openApiEvent.note }}</view>
       </view>
-      <view class="api-note">状态流转在老人端后端统一处理，本页只读展示</view>
+
+      <view class="process-title">社区处置</view>
+      <textarea
+        v-if="openApiEvent.status === 'processing'"
+        v-model="apiNoteDraft"
+        class="result-input"
+        maxlength="200"
+        placeholder="填写处理结果（可选，最多 200 字，将写入这条求助事件）"
+        placeholder-class="result-placeholder"
+      />
+      <view v-if="sosStore.actionError.value" class="api-error">{{ sosStore.actionError.value }}</view>
+      <view
+        v-if="apiNextLabel"
+        class="accept"
+        :class="{ 'accept-busy': Boolean(sosStore.busyId.value) }"
+        @tap="advanceApiEvent"
+      >
+        {{ sosStore.busyId.value ? '提交中…' : apiNextLabel }}
+      </view>
+      <view v-else class="api-note">
+        该求助已处理完成；状态与备注以老人端后端记录为准，本页为本地演示数据
+      </view>
     </template>
   </BottomSheet>
 
@@ -601,6 +666,10 @@ function simulate() {
   background: #4968a9;
   font-size: 28rpx;
   font-weight: 800;
+}
+
+.accept-busy {
+  opacity: 0.6;
 }
 
 .api-error {

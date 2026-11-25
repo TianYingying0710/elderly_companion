@@ -18,6 +18,8 @@ export interface SosEventView {
   id: string
   elderId: string
   time: string
+  /** 后端原始状态：决定「能推进到哪一步」，渲染仍用 statusLabel */
+  status: SosEventStatus
   statusLabel: string
   statusKind: SosEventStatusKind
   note: string
