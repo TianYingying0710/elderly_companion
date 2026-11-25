@@ -1,8 +1,8 @@
 """课程/视频/学习记录 SQLite 持久化测试（2026-11-14 授权例外）。
 
-覆盖：动态课程落库与预置课程合并、视频登记、学习记录 upsert（含预置课程）、
-并发 upsert 唯一胜者、环境变量接线与「重启后数据仍在」、默认内存不留库文件、
-存储错误映射 503。"""
+覆盖：SQLite 路径**只返回社区端真实课程**（5 条演示课程不得出现在 API 结果里）、
+动态课程落库与视频关联、学习记录 upsert、并发 upsert 唯一胜者、
+环境变量接线与「重启后课程与视频关联仍在」、默认内存不留库文件、存储错误映射 503。"""
 
 import asyncio
 import io
@@ -15,8 +15,31 @@ from fastapi.testclient import TestClient
 from silver_companion_elder.errors import CourseStorageUnavailableError
 from silver_companion_elder.main import create_app
 from silver_companion_elder.repositories.courses import get_course_repository
+from silver_companion_elder.repositories import courses as courses_repository
+from silver_companion_elder.repositories import sqlite_courses
 from silver_companion_elder.repositories.sqlite_courses import SqliteCourseRepository
-from silver_companion_elder.schemas.courses import CreateCourseRequest
+from silver_companion_elder.schemas.courses import CourseStatus, CreateCourseRequest
+
+# 5 条硬编码演示课程的 id：只允许出现在 mock / 内存路径，SQLite（API 模式）不得返回。
+DEMO_COURSE_IDS = {
+    "course-smartphone-basics",
+    "course-anti-fraud",
+    "course-video-call",
+    "course-health-walking",
+    "course-emergency-sos",
+}
+
+
+@pytest.fixture(autouse=True)
+def isolated_video_dir(tmp_path, monkeypatch):
+    """上传用例产生的 mp4 只写进 tmp_path，不落到仓库真实的 data/uploads/videos/。
+
+    否则每跑一次测试就在真实上传目录里多留一个孤儿视频（既不删也不好追溯）。
+    """
+    video_dir = tmp_path / "uploads" / "videos"
+    monkeypatch.setattr(sqlite_courses, "VIDEO_STORAGE_DIR", video_dir)
+    monkeypatch.setattr(courses_repository, "VIDEO_STORAGE_DIR", video_dir)
+    yield
 
 
 def run(coro):
@@ -44,22 +67,55 @@ def make_request(video_id: str | None = None) -> CreateCourseRequest:
     )
 
 
-def test_demo_and_dynamic_courses_merge_in_list(tmp_path) -> None:
+def test_sqlite_list_contains_only_created_course(tmp_path) -> None:
     repository = make_repository(tmp_path)
     created = run(repository.create_course(make_request()))
 
     courses = run(repository.list_courses())
-    assert [c.id for c in courses][:5] == [
-        "course-smartphone-basics",
-        "course-anti-fraud",
-        "course-video-call",
-        "course-health-walking",
-        "course-emergency-sos",
-    ]
-    assert courses[-1].id == created.id
-    # 预置课程不落库：库里只有动态课程一行
-    assert run(repository.get_course("course-smartphone-basics")) is not None
+    ids = [c.id for c in courses]
+    # 演示课程在 SQLite 路径下不注入：列表里只有社区端真实落库的课程
+    assert ids == [created.id]
+    assert ids[0].startswith("course-")
     assert run(repository.get_course(created.id)).title == "防诈骗第一课"
+
+
+def test_sqlite_list_excludes_five_demo_courses(tmp_path) -> None:
+    """API 列表不得包含 5 条硬编码演示课程（两套课程彻底分离）。"""
+    repository = make_repository(tmp_path)
+    run(repository.create_course(make_request()))
+
+    ids = {c.id for c in run(repository.list_courses())}
+    assert ids.isdisjoint(DEMO_COURSE_IDS)
+    for demo_id in DEMO_COURSE_IDS:
+        assert run(repository.get_course(demo_id)) is None
+
+
+def test_sqlite_list_returns_only_published_real_courses(tmp_path) -> None:
+    repository = make_repository(tmp_path)
+    first = run(repository.create_course(make_request()))
+    second = run(repository.create_course(make_request()))
+
+    listed = {c.id for c in run(repository.list_courses())}
+    assert listed == {first.id, second.id}
+    # 下架后的课程默认不可见，但 include_unpublished 仍能取到
+    assert run(repository.set_publication(second.id, CourseStatus.unpublished, CourseStatus.published))
+    assert {c.id for c in run(repository.list_courses())} == {first.id}
+    assert {c.id for c in run(repository.list_courses(include_unpublished=True))} == {
+        first.id,
+        second.id,
+    }
+
+
+def test_sqlite_detail_carries_video_url(tmp_path) -> None:
+    """真实课程详情必须带回视频地址，前端据此渲染播放器。"""
+    repository = make_repository(tmp_path)
+    video_id, _ = run(repository.save_video(make_upload(), 200, 64))
+    created = run(repository.create_course(make_request(video_id=video_id)))
+
+    detail = run(repository.get_course(created.id))
+    assert detail is not None
+    assert detail.video_url == f"/api/v1/course-videos/{video_id}"
+    assert repository.get_video_path(video_id) is not None
 
 
 def test_create_course_with_unknown_video_id_raises(tmp_path) -> None:
@@ -77,28 +133,28 @@ def test_video_registration_roundtrip(tmp_path) -> None:
     assert repository.get_video_path("ghost") is None
 
 
-def test_upsert_record_allows_demo_and_dynamic_courses_only(tmp_path) -> None:
+def test_upsert_record_allows_real_courses_only(tmp_path) -> None:
     repository = make_repository(tmp_path)
     created = run(repository.create_course(make_request()))
 
-    first = run(repository.upsert_record("course-anti-fraud", 40))
-    assert first is not None and first.progress_percent == 40
+    # 演示课程在 SQLite 路径下不存在 → 学习记录拒绝写入
+    assert run(repository.upsert_record("course-anti-fraud", 40)) is None
     run(repository.upsert_record(created.id, 90))
-    # 未知课程拒绝
+    # 未知课程同样拒绝
     assert run(repository.upsert_record("course-ghost", 10)) is None
 
     records = run(repository.list_records())
-    assert {record.course_id for record in records} == {"course-anti-fraud", created.id}
+    assert {record.course_id for record in records} == {created.id}
     # upsert 覆盖旧进度
-    run(repository.upsert_record("course-anti-fraud", 80))
+    run(repository.upsert_record(created.id, 80))
     by_course = {record.course_id: record.progress_percent for record in run(repository.list_records())}
-    assert by_course["course-anti-fraud"] == 80
+    assert by_course[created.id] == 80
 
 
 def test_upsert_keeps_latest_record_on_top(tmp_path) -> None:
     repository = make_repository(tmp_path)
-    run(repository.upsert_record("course-anti-fraud", 40))
-    latest = run(repository.upsert_record("course-video-call", 20))
+    run(repository.upsert_record(run(repository.create_course(make_request())).id, 40))
+    latest = run(repository.upsert_record(run(repository.create_course(make_request())).id, 20))
     records = run(repository.list_records())
     assert records[0].course_id == latest.course_id
 
@@ -107,7 +163,8 @@ def test_concurrent_upsert_keeps_single_consistent_row(tmp_path) -> None:
     path = tmp_path / "race.db"
     writer = SqliteCourseRepository(path)
     writer.initialize()
-    run(writer.upsert_record("course-anti-fraud", 0))
+    course_id = run(writer.create_course(make_request())).id
+    run(writer.upsert_record(course_id, 0))
 
     repository_a = SqliteCourseRepository(path)
     repository_b = SqliteCourseRepository(path)
@@ -115,7 +172,7 @@ def test_concurrent_upsert_keeps_single_consistent_row(tmp_path) -> None:
 
     def contend(repository: SqliteCourseRepository, percent: int) -> None:
         barrier.wait()
-        run(repository.upsert_record("course-anti-fraud", percent))
+        run(repository.upsert_record(course_id, percent))
 
     thread_a = threading.Thread(target=contend, args=(repository_a, 55))
     thread_b = threading.Thread(target=contend, args=(repository_b, 66))
@@ -163,6 +220,10 @@ def test_env_wired_api_persists_across_restart(tmp_path, monkeypatch) -> None:
         get_course_repository.cache_clear()
         restarted = TestClient(create_app())
         catalog = restarted.get("/api/v1/courses").json()
+        course_ids = {row["id"] for row in catalog}
+        # 重启后：真实课程在，5 条演示课程不在
+        assert course_ids == {course_id}
+        assert course_ids.isdisjoint(DEMO_COURSE_IDS)
         created_rows = [row for row in catalog if row["id"] == course_id]
         assert len(created_rows) == 1
         assert created_rows[0]["video_url"] == f"/api/v1/course-videos/{video_id}"
@@ -182,6 +243,7 @@ def test_env_wired_api_persists_across_restart(tmp_path, monkeypatch) -> None:
 
 
 def test_default_without_env_stays_in_memory(monkeypatch, tmp_path) -> None:
+    """未设 ELDER_DATABASE_PATH → 内存实现，5 条演示课程仍可读（mock 路径的兜底）。"""
     monkeypatch.delenv("ELDER_DATABASE_PATH", raising=False)
     get_course_repository.cache_clear()
     try:

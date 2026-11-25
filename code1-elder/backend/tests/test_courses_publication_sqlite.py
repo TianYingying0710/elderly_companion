@@ -83,12 +83,11 @@ def test_same_status_transition_is_rejected(tmp_path) -> None:
     )
 
 
-def test_preset_course_is_always_published_and_not_editable(tmp_path) -> None:
+def test_preset_course_is_absent_from_sqlite_repository(tmp_path) -> None:
+    """演示课程不进 SQLite：查不到详情，也无法通过发布接口变更（404 语义 not found）。"""
     repository = make_repository(tmp_path)
     preset = run(repository.get_course("course-smartphone-basics"))
-    assert preset is not None
-    assert preset.status == CourseStatus.published
-    assert preset.editable is False
+    assert preset is None
     assert (
         run(
             repository.set_publication(
@@ -99,7 +98,7 @@ def test_preset_course_is_always_published_and_not_editable(tmp_path) -> None:
         )
         is None
     )
-    assert run(repository.get_course("course-smartphone-basics")).status == CourseStatus.published
+    assert run(repository.get_course("course-smartphone-basics")) is None
 
 
 def test_unknown_course_publication_returns_none(tmp_path) -> None:
