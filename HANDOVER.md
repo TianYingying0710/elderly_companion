@@ -4,7 +4,7 @@
 
 ## 一、项目一句话现状
 
-银龄伴三端（老人 Vue3/Capacitor、监护人 uni-app 小程序、社区端 uni-app 小程序）+ 三后端（code1 :8001 单一内容源 / code2 :8002 / code3 :8003）。SOS、课程、视频、学习记录四域已实现并支持 SQLite 持久化；SOS 处置闭环（`ba188ae`：监护人端处置 + 老人端进度反馈）与老人端学习记录页接真实 GET 接口（`a81da60` 功能切片 + `e249927` 加载/失败状态与回归测试，零契约变更）均已完成并提交，工作区已干净。老人端「我的求助」页已接真实 SOS 列表（零契约变更）。
+银龄伴三端（老人 Vue3/Capacitor、监护人 uni-app 小程序、社区端 uni-app 小程序）+ 三后端（code1 :8001 单一内容源 / code2 :8002 / code3 :8003）。SOS、课程、视频、学习记录四域已实现并支持 SQLite 持久化；SOS 处置闭环（`ba188ae`：监护人端处置 + 老人端进度反馈）与老人端学习记录页接真实 GET 接口（`a81da60` 功能切片 + `e249927` 加载/失败状态与回归测试，零契约变更）均已完成并提交。老人端「我的求助」页已接真实 SOS 列表（零契约变更）。课程上下架已真实化：code1 新增 `status`/`editable` 与 `POST /api/v1/courses/{course_id}/publication`，SQLite 增第四张表 `course_publications`，社区端教学页可下架/重新发布，老人端前端零改动；code3 的课程域仍保持 501。跨端验收基座已落地，33 项真实链路检查与 `verify-framework.ps1` 组成双门禁；本切片课程上下架的重启持久化（原 Task 6）已由这 33 项验收覆盖。本切片提交尚未推送；推送由用户执行（`git push origin main`，禁止 force push）。
 
 ## 二、SOS 处置闭环（已提交，`ba188ae`）
 
@@ -25,13 +25,18 @@
 
 ## 四、下一步开发候选（按优先级）
 
-1. **api 模式双端 SOS 人工联调（推荐）**：监护人端处置 → 老人端「求助进度」刷新与「我的求助」列表核对；后端无新增链路。
-2. 课程上下架（code3 courses 501 → 真实，需先解除 AGENTS.md 对社区端课程域的禁令并讨论契约）
-3. AI/知识库（需用户先决策模型选型，勿自行启动）
-4. 人工联调欠账：趋势曲线、功能建设中 toast、课程视频播放/上传联调
+1. **api 模式双端人工联调**：监护人端处置 → 老人端「求助进度」刷新与「我的求助」列表核对；社区端教学页上下架 → 老人端目录过滤与重新发布恢复。
+2. AI/知识库（需用户先决策模型选型，勿自行启动）
+3. 人工联调欠账：趋势曲线、功能建设中 toast、课程视频播放/上传联调
+
+注：跨端验收基座已完成并移出候选——入口为 `scripts/verify-acceptance.ps1`，基座代码在 `scripts/acceptance/`（含 `support.py`、`scenarios.py`、`run_acceptance.py` 与 `tests/`），33 项真实链路检查与 `verify-framework.ps1` 互不调用、共同构成发布门禁。
+
+注：code3 后端的救援/知识/课程三个域仍为 501 契约骨架；社区端前端已绕开它们直连 code1，不需要改 code3 路由。
 
 ## 五、关键路径速查
 
 - 事实源：`e:\c2--\code`（main）；开发者工具产物目录：`E:\c2--\code-guardian-hardening\code2-guardian\frontend\dist\build\mp-weixin`
 - 文档：`docs/api.md`、`docs/architecture.md`（2026-11-14 已与代码同步）、`docs/progress.md`
+- 验证入口：`scripts/verify-framework.ps1`（三端测试与构建）、`scripts/verify-acceptance.ps1`（真实三后端 + 临时库 + 重启持久化）；接线自测手动运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/test-verify-acceptance.ps1`
+- 验收基座：`scripts/acceptance/`（`support.py` 支撑层、`scenarios.py` 场景层、`run_acceptance.py` 编排器、`tests/` 支撑层单测）
 - 环境变量：`VITE_SOS_DATA_MODE` / `VITE_COURSE_DATA_MODE` / `VITE_HEALTH_DATA_MODE`（默认 mock）、`VITE_ELDER_API_BASE_URL`（跨直连 :8001）、`SOS_DATABASE_PATH` / `ELDER_DATABASE_PATH` / `COMMUNITY_DATABASE_PATH`（持久化开关）

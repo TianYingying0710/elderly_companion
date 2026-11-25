@@ -49,7 +49,7 @@ apiRequest<T>(path: string, options?): Promise<T>
 
 ## 老人端已实现的接口：SOS / 课程 / 视频 / 学习记录
 
-全部位于 code1-elder/backend（2026-11 起分批实现，2026-11-14 完成持久化收尾）。默认进程内存存储；设置环境变量后改用本地开发 SQLite（仅 `CREATE TABLE IF NOT EXISTS`，无 seed，与社区端服务任务同模式）：SOS 单表 `sos_events`（`SOS_DATABASE_PATH`），课程三表 `courses` / `course_videos` / `learning_records`（`ELDER_DATABASE_PATH`）。预置演示课程始终由代码提供、不落库，读取时与库内动态课程合并（预置在前）。SQLite 错误统一 `503`：`sos_storage_unavailable` / `course_storage_unavailable`。
+全部位于 code1-elder/backend（2026-11 起分批实现，2026-11-14 完成持久化收尾）。默认进程内存存储；设置环境变量后改用本地开发 SQLite（仅 `CREATE TABLE IF NOT EXISTS`，无 seed，与社区端服务任务同模式）：SOS 单表 `sos_events`（`SOS_DATABASE_PATH`），课程四表 `courses` / `course_videos` / `learning_records` / `course_publications`（`ELDER_DATABASE_PATH`）。`course_publications` 只记录动态课程的上下架状态，缺行等价于 `published`（兼容升级前的库）。预置演示课程始终由代码提供、不落库且不可上下架，读取时与库内动态课程合并（预置在前）。SQLite 错误统一 `503`：`sos_storage_unavailable` / `course_storage_unavailable`。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -59,9 +59,10 @@ apiRequest<T>(path: string, options?): Promise<T>
 | POST | `/api/v1/sos-events/{event_id}/transitions` | PATCH 的微信兼容别名（`uni.request` 不支持 PATCH），路径语义与体字段完全一致 |
 | POST | `/api/v1/course-videos` | 上传 mp4（≤200MB）分块落盘 `data/uploads/videos/`（不入 git），返回 `{video_id, video_url}` |
 | GET | `/api/v1/course-videos/{video_id}` | 视频流式播放（支持 Range 拖动进度条） |
-| GET | `/api/v1/courses` | 课程目录 = 预置演示课程 + 动态课程 |
-| GET | `/api/v1/courses/{course_id}` | 课程详情（含大纲） |
-| POST | `/api/v1/courses` | 创建课程，可带 `video_id` 关联已上传视频 |
+| GET | `/api/v1/courses` | 课程目录 = 预置演示课程 + 动态课程；默认仅已发布，`include_unpublished=true` 返回全部 |
+| GET | `/api/v1/courses/{course_id}` | 课程详情（含大纲）；已下架课程按不存在返回 `404` |
+| POST | `/api/v1/courses` | 创建课程，可带 `video_id` 关联已上传视频；新课程默认 `published` 且 `editable=true` |
+| POST | `/api/v1/courses/{course_id}/publication` | 上下架，体 `{status}`（`published` / `unpublished`）；`uni.request` 不支持 PATCH，故用 POST |
 | GET | `/api/v1/learning-records` | 学习记录列表 |
 | PUT | `/api/v1/learning-records/{course_id}` | upsert 进度，体 `{progress_percent}`（0–100 整数） |
 
@@ -71,17 +72,27 @@ apiRequest<T>(path: string, options?): Promise<T>
 |---|---:|---|
 | 资源不存在 | 404 | `course_not_found` / `sos_event_not_found` / `video_not_found` |
 | SOS 非法状态推进 | 409 | `invalid_state_transition` |
+| 预置课程尝试上下架 | 409 | `course_not_editable` |
+| 上下架目标状态与当前状态相同，或并发下被其他请求抢先 | 409 | `illegal_course_publication` |
 | 参数非法（空白 ID、进度越界、非 mp4、超 200MB 等） | 422 | `validation_failed` |
 | SQLite 未配置路径不可用或读写失败 | 503 | `sos_storage_unavailable` / `course_storage_unavailable` |
 
 状态机唯一真源在后端 Service；SOS 状态推进与学习记录 upsert 均以 `BEGIN IMMEDIATE` 条件更新执行，并发下只有一个请求成功。
+
+课程上下架语义：
+
+- 课程摘要新增 `status`（`published` / `unpublished`，缺省 `published`）与 `editable`（预置课程 `false`，动态课程 `true`）。
+- 预置演示课程由代码提供、不落库，任何上下架请求返回 `409 course_not_editable`。
+- 下架后该课程从默认目录与详情中消失（详情按 `404 course_not_found`），但学习记录保留；重新发布后记录与目录一并恢复。
+- 重复提交相同目标状态返回 `409 illegal_course_publication`；两个请求并发切换时只有一个成功，另一个同样得到该错误。
+- 社区端教学页的管理列表使用 `?include_unpublished=true` 读取全部课程，并按 `editable` 决定是否展示上下架入口。
 
 ## 监护人端与社区端的跨直连（不经过各自后端）
 
 SOS 与课程能力的内容源都在 code1，消费端前端直连：
 
 - **监护人端消息中心**：`data/sosEventsProvider.ts`（`VITE_SOS_DATA_MODE=api`）经 `api/sosEvents.ts` 调 code1 `GET /api/v1/sos-events`，把求助事件合并进消息列表；页面可见期间 30 秒轮询（`domain/sosAutoRefresh.ts`），发现新事件显示页内提示条（2026-11-14）。
-- **社区端教学**：上传视频/建课/目录/学习进度直连 code1（`VITE_COURSE_DATA_MODE=api`），学习进度合并展示「学员进度」。
+- **社区端教学**：上传视频/建课/目录/学习进度/上下架直连 code1（`VITE_COURSE_DATA_MODE=api`）；目录以 `include_unpublished=true` 拉取全部课程，学习进度合并展示「学员进度」，上下架走 `POST /api/v1/courses/{course_id}/publication`。
 - **社区端救援**：直连 code1 SOS 事件列表（`VITE_SOS_DATA_MODE=api`）。
 
 以上均使用 `VITE_ELDER_API_BASE_URL`（默认 `http://127.0.0.1:8001`）。
@@ -157,7 +168,7 @@ SOS 与课程能力的内容源都在 code1，消费端前端直连：
 
 ## 社区端已定义但未实现的接口（截至 2026-11-14 仍为 501）
 
-救援、知识、课程三个领域仍是契约骨架，合法请求统一返回 `501`：
+救援、知识、课程三个领域仍是 code3 后端的契约骨架，合法请求统一返回 `501`。社区端前端的教学页不调用这些 code3 路由：课程目录、建课与上下架均直连 code1（见上文「跨直连」）。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|

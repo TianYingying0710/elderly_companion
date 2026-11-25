@@ -10,6 +10,8 @@ const dto: CourseSummaryDto = {
   description: '从开关机到连 Wi-Fi。',
   duration_seconds: 600,
   video_url: null,
+  status: 'published',
+  editable: true,
 }
 
 const upload: CourseVideoUploadDto = { video_id: 'v1', video_url: '/api/v1/course-videos/v1' }
@@ -31,6 +33,7 @@ function deps(result: unknown) {
     listLearningRecords: vi.fn(async () => []),
     uploadVideo: vi.fn(async () => upload),
     createCourse: vi.fn(async () => result),
+    updatePublication: vi.fn(async () => result),
   }
 }
 
@@ -128,5 +131,58 @@ describe('useCoursePublish', () => {
     const ok = await controller.publish({ ...validDraft, videoPath: 'tmp://a.mp4', videoName: 'a.mp4', videoSize: 10 })
     expect(ok).toBe(false)
     expect(controller.publishError.value).toBe('仅支持 .mp4 视频文件')
+  })
+
+  it('上下架成功后刷新目录并清空错误', async () => {
+    const d = deps(dto)
+    const controller = useCoursePublish(d)
+
+    const ok = await controller.setPublication('course-1', 'unpublished')
+
+    expect(ok).toBe(true)
+    expect(d.updatePublication).toHaveBeenCalledWith('course-1', 'unpublished')
+    expect(d.listCourses).toHaveBeenCalledTimes(1)
+    expect(controller.updatingId.value).toBe('')
+    expect(controller.publishError.value).toBe('')
+  })
+
+  it('上下架失败写入错误且不刷新目录', async () => {
+    const error = Object.assign(new Error('课程状态不允许重复变更'), {
+      statusCode: 409,
+      code: 'illegal_course_publication',
+      fields: [],
+    })
+    const d = {
+      ...deps(dto),
+      updatePublication: vi.fn(async () => { throw error }),
+    }
+    const controller = useCoursePublish(d)
+
+    const ok = await controller.setPublication('course-1', 'unpublished')
+
+    expect(ok).toBe(false)
+    expect(d.listCourses).not.toHaveBeenCalled()
+    expect(controller.publishError.value).toBe('课程状态不允许重复变更')
+    expect(controller.updatingId.value).toBe('')
+  })
+
+  it('更新进行中阻止重复提交', async () => {
+    let resolveUpdate: (value: CourseSummaryDto) => void = () => undefined
+    const pending = new Promise<CourseSummaryDto>((resolve) => {
+      resolveUpdate = resolve
+    })
+    const d = {
+      ...deps(dto),
+      updatePublication: vi.fn(() => pending),
+    }
+    const controller = useCoursePublish(d)
+
+    const first = controller.setPublication('course-1', 'unpublished')
+    const second = await controller.setPublication('course-1', 'published')
+
+    expect(second).toBe(false)
+    resolveUpdate(dto)
+    await expect(first).resolves.toBe(true)
+    expect(d.updatePublication).toHaveBeenCalledTimes(1)
   })
 })

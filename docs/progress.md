@@ -2,6 +2,25 @@
 
 更新日期：2026-11-14
 
+## 2026-11-14：跨端自动化验收基座（双门禁）
+
+- **功能**：新增 `scripts/acceptance/` 基座与 `scripts/verify-acceptance.ps1`，先落地 22 项真实链路检查，随后扩展到 33 项，覆盖课程上下架、下架后详情 404、重复切换 409、重启后状态持久化与重新发布恢复。
+- **隔离**：验收启动 code1/code2/code3 三个 FastAPI 子进程，把 `SOS_DATABASE_PATH` / `ELDER_DATABASE_PATH` / `COMMUNITY_DATABASE_PATH` 全部指向 `tempfile.mkdtemp` 下的临时库，端口为动态 `127.0.0.1`；不 import 后端代码、不直接读表、不依赖预置课程，结束后删除临时目录，并以 G01/G02 检查仓库既有 `*.db` 未被改动、仓库无新增 `*.db`。
+- **检查项**：G01 仓库既有库基线 → S01–S03 健康检查/课程目录/建课 → S04、S04a–S04f 学习进度写回、下架、目录排除、`include_unpublished`、详情 404、重复切换 409、未知课程 404 → S05–S09 SOS 创建/查询/流转/回退拒绝/POST 别名 → S10–S11 监护人健康与诚实 503 → S12–S16 社区服务任务建单/接单/完成/重复完成 409 → S17–S20 重启后 SOS、课程上下架、学习记录与服务任务状态持久化 → G02 隔离复核。
+- **门禁结果**：`verify-acceptance.ps1` 先跑支撑层单测 Ran 17 tests / OK，再由编排器输出末尾 `ACCEPTANCE PASS (33 checks)`，退出码 0；`verify-framework.ps1` 同时通过（老人端前端 99 项、监护人端 160 项、社区端 148 项；code1 后端 73 项、code2 后端 8 项、code3 后端 80 项、code4 契约 3 项；三端 build/type-check 通过）。
+- **双门禁**：`.\scripts\verify-framework.ps1 -Python "<银龄伴 Python 可执行文件>"` 与 `.\scripts\verify-acceptance.ps1 -Python "<银龄伴 Python 可执行文件>"` 互不调用，两者都成功才算发布通过。
+- **欠账**：微信开发者工具中的人工联调仍需执行；验收不覆盖视频 multipart 上传与浏览器/小程序 UI。
+
+## 2026-11-14：课程上下架真实化（code1 后端 + 社区端教学页）
+
+- **功能**：课程目录新增发布状态。code1 后端 `CourseSummary` 增加 `status`（`published` / `unpublished`）与 `editable`；`GET /api/v1/courses` 默认只返回已发布课程，`include_unpublished=true` 返回全部；`GET /api/v1/courses/{course_id}` 对已下架课程按不存在返回 `404`；新增 `POST /api/v1/courses/{course_id}/publication`（体 `{status}`），下架保留学习记录，重新发布后目录、详情与记录一并恢复。
+- **语义**：预置演示课程由代码提供、不落库，`editable=false`，上下架返回 `409 course_not_editable`；动态课程 `editable=true`。重复提交相同目标状态或并发被抢先返回 `409 illegal_course_publication`。SQLite 新增单表 `course_publications`（`course_id` 主键、`status`、`updated_at`），缺行等价于 `published`，升级旧库无需迁移；内存与 SQLite 两种实现语义一致。
+- **社区端**：`types/elderCourses`、`api/elderCourses`、`mappers/courseMapper` 增加状态解析与 `updateCoursePublication`；`useCoursePublish` 增加 `setPublication` 与 `updatingId` 单请求互斥，成功后重载列表、失败保留旧列表；教学页管理列表改用 `include_unpublished=true`，按 `editable` 显示「下架 / 重新发布」，预置课程显示只读标识。老人端前端零改动。
+- **契约变更（显式报备）**：`CourseSummary` 新增 `status`、`editable`；新增 `POST /api/v1/courses/{course_id}/publication`；新增错误码 `409 course_not_editable`、`409 illegal_course_publication`。
+- **授权记录**：2026-11-14 用户授权例外扩展为 code1 四表（`courses`/`course_videos`/`learning_records`/`course_publications`），已同步记入 `AGENTS.md`；仍只允许 `CREATE TABLE IF NOT EXISTS`，禁止 seed 与迁移框架。
+- **验证**：`scripts/verify-framework.ps1` 全绿——code1 后端 73 项、code2 后端 8 项、code3 后端 80 项、code4 契约 3 项；老人端前端 99 项、监护人端 160 项、社区端 148 项；三端 type-check 0 错，老人端 `vite build` 与两端 `build:mp-weixin` 均通过。
+- **欠账**：跨端验收基座已在本页上方「跨端自动化验收基座」章节补齐，上下架重启持久化与跨端检查已纳入 33 项自动化验收；教学页上下架的人工联调仍需微信开发者工具验证。
+
 ## 2026-11-14：老人端「我的求助」接真实 SOS 列表（前端切片）
 
 - **功能**：api 模式（`VITE_SOS_DATA_MODE=api`）下，「我的求助」页通过 `GET /api/v1/sos-events?elder_id=elder-001` 读取真实事件，按创建时间倒序展示状态、创建时间与备注；加载中/失败/空态分别可见。mock 模式演示分支与 SOS 发送/刷新链路保持不变。

@@ -2,6 +2,7 @@
 
 import { ApiError, createApiClient, toApiError } from './client'
 import type {
+  CourseStatus,
   CourseSummaryDto,
   CourseVideoUploadDto,
   CreateCoursePayload,
@@ -14,6 +15,13 @@ const elderApiRequest = createApiClient(elderApiBaseUrl)
 type RequestOptions = Omit<UniApp.RequestOptions, 'url' | 'success' | 'fail'>
 
 export type ElderCourseRequest = <T>(path: string, options?: RequestOptions) => Promise<T>
+
+export function parseCourseStatus(raw: unknown): CourseStatus {
+  if (raw !== 'published' && raw !== 'unpublished') {
+    throw new Error('invalid course status')
+  }
+  return raw
+}
 
 /** 校验课程摘要 DTO，字段集合必须与后端契约一致，多余字段忽略 */
 export function parseCourseSummary(raw: unknown): CourseSummaryDto {
@@ -31,6 +39,7 @@ export function parseCourseSummary(raw: unknown): CourseSummaryDto {
   if (record.video_url !== null && typeof record.video_url !== 'string') {
     throw new Error('invalid course video_url')
   }
+  if (typeof record.editable !== 'boolean') throw new Error('invalid course editable')
   return {
     id: record.id,
     title: record.title,
@@ -38,6 +47,8 @@ export function parseCourseSummary(raw: unknown): CourseSummaryDto {
     description: record.description,
     duration_seconds: record.duration_seconds,
     video_url: record.video_url,
+    status: parseCourseStatus(record.status),
+    editable: record.editable,
   }
 }
 
@@ -56,12 +67,38 @@ export function parseCourseVideoUpload(raw: unknown): CourseVideoUploadDto {
   return { video_id: record.video_id, video_url: record.video_url }
 }
 
-/** GET /api/v1/courses：课程目录（含社区端新建与后端预置演示课程） */
-export function getElderCourses(request: ElderCourseRequest = elderApiRequest): Promise<CourseSummaryDto[]> {
-  return request<CourseSummaryDto[]>('/api/v1/courses', { method: 'GET' }).then((raw: unknown) => {
+export interface CourseListOptions {
+  includeUnpublished?: boolean
+}
+
+/** GET /api/v1/courses；管理页传 includeUnpublished 以看到已下架课程 */
+export function getElderCourses(
+  request: ElderCourseRequest = elderApiRequest,
+  options: CourseListOptions = {},
+): Promise<CourseSummaryDto[]> {
+  const path = options.includeUnpublished
+    ? '/api/v1/courses?include_unpublished=true'
+    : '/api/v1/courses'
+  return request<CourseSummaryDto[]>(path, { method: 'GET' }).then((raw: unknown) => {
     if (!Array.isArray(raw)) throw new Error('invalid courses payload')
     return raw.map(parseCourseSummary)
   })
+}
+
+/** POST /api/v1/courses/{id}/publication：微信端不支持 PATCH，使用 POST 子资源 */
+export function updateCoursePublication(
+  courseId: string,
+  status: CourseStatus,
+  request: ElderCourseRequest = elderApiRequest,
+): Promise<CourseSummaryDto> {
+  return request<CourseSummaryDto>(
+    `/api/v1/courses/${encodeURIComponent(courseId)}/publication`,
+    {
+      method: 'POST',
+      data: { status },
+      header: { 'Content-Type': 'application/json' },
+    },
+  ).then(parseCourseSummary)
 }
 
 export function parseLearningRecord(raw: unknown): LearningRecordDto {

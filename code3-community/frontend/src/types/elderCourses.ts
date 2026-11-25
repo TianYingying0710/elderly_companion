@@ -1,5 +1,8 @@
 /** 助老课程（老人端后端 code1 单一内容源）的传输类型与页面 ViewModel。两套类型不混用。 */
 
+/** 课程发布状态：与 code1 契约一致 */
+export type CourseStatus = 'published' | 'unpublished'
+
 /** 后端返回的课程摘要 DTO：snake_case；`video_url` 为 null 表示尚未上传视频 */
 export interface CourseSummaryDto {
   id: string
@@ -8,6 +11,9 @@ export interface CourseSummaryDto {
   description: string
   duration_seconds: number
   video_url: string | null
+  status: CourseStatus
+  /** 预置演示课程为 false，社区端动态课程为 true */
+  editable: boolean
 }
 
 /** 上传视频成功后的 DTO：先拿 video_id，再随创建课程请求提交 */
@@ -51,6 +57,8 @@ export interface ElderCourseView {
   durationText: string
   /** 是否已关联视频 */
   hasVideo: boolean
+  status: CourseStatus
+  editable: boolean
   /** 学员学习进度（0-100 整数）；null/undefined 表示暂无学习记录 */
   progressPercent?: number | null
 }

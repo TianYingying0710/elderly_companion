@@ -7,6 +7,7 @@ import {
   createElderCourse,
   getElderCourses,
   getLearningRecords,
+  updateCoursePublication,
   uploadCourseVideo,
 } from '../api/elderCourses'
 import {
@@ -16,6 +17,7 @@ import {
   toElderCourseView,
 } from '../mappers/courseMapper'
 import type {
+  CourseStatus,
   CourseSummaryDto,
   CourseVideoUploadDto,
   CourseFormDraft,
@@ -31,6 +33,7 @@ export interface CoursePublishDeps {
     onProgress?: (percent: number) => void,
   ) => Promise<CourseVideoUploadDto>
   createCourse?: (payload: Parameters<typeof createElderCourse>[0]) => Promise<CourseSummaryDto>
+  updatePublication?: (courseId: string, status: CourseStatus) => Promise<CourseSummaryDto>
 }
 
 export interface CoursePublishController {
@@ -44,8 +47,11 @@ export interface CoursePublishController {
   progressText: Ref<string>
   /** 发布失败原因，空串表示无错误 */
   publishError: Ref<string>
+  /** 正在上下架的课程 id；空串表示空闲 */
+  updatingId: Ref<string>
   load: () => Promise<void>
   publish: (draft: CourseFormDraft) => Promise<boolean>
+  setPublication: (courseId: string, status: CourseStatus) => Promise<boolean>
 }
 
 /** 把统一错误契约（422 validation_failed 等）翻译成用户可读文案 */
@@ -62,11 +68,16 @@ export function describeCourseError(error: unknown): string {
 }
 
 export function useCoursePublish(deps: CoursePublishDeps = {}): CoursePublishController {
-  const listCourses = deps.listCourses ?? (async () => await getElderCourses())
+  const listCourses =
+    deps.listCourses ??
+    (async () => await getElderCourses(undefined, { includeUnpublished: true }))
   const listLearningRecords = deps.listLearningRecords ?? (async () => await getLearningRecords())
   const uploadVideo =
     deps.uploadVideo ?? (async (filePath, onProgress) => await uploadCourseVideo(filePath, onProgress))
   const createCourse = deps.createCourse ?? (async (payload) => await createElderCourse(payload))
+  const updatePublication =
+    deps.updatePublication ??
+    (async (courseId, status) => await updateCoursePublication(courseId, status))
 
   const courses = ref<ElderCourseView[]>([])
   const loading = ref(false)
@@ -74,6 +85,7 @@ export function useCoursePublish(deps: CoursePublishDeps = {}): CoursePublishCon
   const publishing = ref(false)
   const progressText = ref('')
   const publishError = ref('')
+  const updatingId = ref('')
 
   async function load(): Promise<void> {
     loading.value = true
@@ -123,5 +135,36 @@ export function useCoursePublish(deps: CoursePublishDeps = {}): CoursePublishCon
     }
   }
 
-  return { mode: 'api', courses, loading, loadError, publishing, progressText, publishError, load, publish }
+  async function setPublication(
+    courseId: string,
+    status: CourseStatus,
+  ): Promise<boolean> {
+    if (updatingId.value) return false
+    updatingId.value = courseId
+    publishError.value = ''
+    try {
+      await updatePublication(courseId, status)
+      await load()
+      return true
+    } catch (error) {
+      publishError.value = describeCourseError(error)
+      return false
+    } finally {
+      updatingId.value = ''
+    }
+  }
+
+  return {
+    mode: 'api',
+    courses,
+    loading,
+    loadError,
+    publishing,
+    progressText,
+    publishError,
+    updatingId,
+    load,
+    publish,
+    setPublication,
+  }
 }

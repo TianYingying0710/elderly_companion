@@ -120,10 +120,16 @@ Android Debug 构建。
 ## 验证
 
 ```powershell
+# 门禁 1：三端测试与构建
 .\scripts\verify-framework.ps1 -Python "E:\workspace\silver-companion-env\python.exe"
 # 外部 Android 工具和 Gradle 分发包可用时：
 .\scripts\verify-framework.ps1 -Python "E:\workspace\silver-companion-env\python.exe" -IncludeAndroid
+
+# 门禁 2：真实三后端 + 临时库 + 重启持久化
+.\scripts\verify-acceptance.ps1 -Python "E:\workspace\silver-companion-env\python.exe"
 ```
+
+两条命令互不调用，均成功才算发布通过。验收只使用 `127.0.0.1` 动态端口和系统临时目录，不读写开发者数据库，也不依赖演示预置数据；任一步失败立即停止并输出步骤号、方法、URL、期望/实际状态与响应摘要。运行门禁 2 前请停掉本机 `:8001`–`:8003` 开发后端，避免仓库内既有 SQLite 库在验收期间被外部进程改写而触发隔离校验失败。
 
 接口说明见 `docs/api.md`，架构边界见 `docs/architecture.md`，实际验收结果见 `docs/framework-acceptance-report.md`。
 

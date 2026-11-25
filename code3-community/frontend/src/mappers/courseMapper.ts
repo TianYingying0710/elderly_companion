@@ -2,6 +2,7 @@
 
 import type {
   CourseFormDraft,
+  CourseStatus,
   CourseSummaryDto,
   CreateCoursePayload,
   ElderCourseView,
@@ -20,6 +21,10 @@ export function formatDuration(seconds: number): string {
   return `约 ${Math.round(seconds / 60)} 分钟`
 }
 
+export function courseStatusLabel(status: CourseStatus): string {
+  return status === 'published' ? '已发布' : '已下架'
+}
+
 export function toElderCourseView(dto: CourseSummaryDto): ElderCourseView {
   return {
     id: dto.id,
@@ -28,6 +33,8 @@ export function toElderCourseView(dto: CourseSummaryDto): ElderCourseView {
     description: dto.description,
     durationText: formatDuration(dto.duration_seconds),
     hasVideo: dto.video_url !== null && dto.video_url.length > 0,
+    status: dto.status,
+    editable: dto.editable,
   }
 }
 

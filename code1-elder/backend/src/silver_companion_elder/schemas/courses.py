@@ -1,8 +1,16 @@
+from enum import Enum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
 NonEmptyText = Annotated[str, Field(min_length=1)]
+
+
+class CourseStatus(str, Enum):
+    """课程发布状态；缺行/新建默认 published。"""
+
+    published = "published"
+    unpublished = "unpublished"
 
 
 class CourseSummary(BaseModel):
@@ -15,6 +23,9 @@ class CourseSummary(BaseModel):
     duration_seconds: Annotated[int, Field(strict=True, ge=0)]
     # 契约扩展：课程关联视频的播放地址；演示预置课程未上传视频时为 null
     video_url: str | None = None
+    # 契约扩展：发布状态与是否允许社区端上下架（预置课程恒为 False）
+    status: CourseStatus = CourseStatus.published
+    editable: bool = False
 
 
 class CourseDetail(CourseSummary):
@@ -39,3 +50,9 @@ class CreateCourseRequest(BaseModel):
     duration_seconds: Annotated[int, Field(strict=True, ge=0)]
     outline: Annotated[list[NonEmptyText], Field(min_length=1, max_length=20)]
     video_id: Annotated[str | None, Field(min_length=1)] = None
+
+
+class CoursePublicationUpdate(BaseModel):
+    """上下架请求体；未知状态由 Pydantic 统一映射为 422。"""
+
+    status: CourseStatus

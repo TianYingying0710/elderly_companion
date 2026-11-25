@@ -22,15 +22,22 @@
 
 已真实接通的链路（截至 2026-11-14）：
 
-- **code1 后端四域**：SOS（POST/GET/PATCH + `POST /{event_id}/transitions` 微信兼容别名，状态机 `pending → processing → resolved`）、课程（目录/详情/创建）、视频（mp4 分块上传落盘、Range 流式播放）、学习记录（GET/PUT upsert）。持久化：`SOS_DATABASE_PATH`（单表）与 `ELDER_DATABASE_PATH`（三表）启用本地 SQLite（仅 `CREATE TABLE IF NOT EXISTS`、无 seed，与社区端服务任务同模式）；未设置时进程内存存储、重启即清。预置演示课程由代码提供、不落库，读取时与动态课程合并。
+- **code1 后端四域**：SOS（POST/GET/PATCH + `POST /{event_id}/transitions` 微信兼容别名，状态机 `pending → processing → resolved`）、课程（目录/详情/创建）、视频（mp4 分块上传落盘、Range 流式播放）、学习记录（GET/PUT upsert）。持久化：`SOS_DATABASE_PATH`（单表）与 `ELDER_DATABASE_PATH`（四表：`courses`/`course_videos`/`learning_records`/`course_publications`）启用本地 SQLite（仅 `CREATE TABLE IF NOT EXISTS`、无 seed，与社区端服务任务同模式）；未设置时进程内存存储、重启即清。预置演示课程由代码提供、不落库，读取时与动态课程合并。`course_publications` 只记录动态课程的发布状态，缺行等价于 `published`，因此升级前的库无需迁移。
 - **SOS 跨端闭环**：老人端发起求助（api 模式）→ code1 落库 → 监护人端消息中心合并展示 + 可见期 30 秒轮询与页内提示条（`domain/sosAutoRefresh.ts`，无实时推送前提下的兜底）。
-- **课程跨端闭环**：社区端上传视频/建课（直连 code1）→ 老人端目录与视频播放 → 播放进度节流写回（每 ≥10% 且 ≥4s、播完写 100）→ 社区端教学页读取展示「学员进度」。
+- **课程跨端闭环**：社区端上传视频/建课（直连 code1）→ 老人端目录与视频播放 → 播放进度节流写回（每 ≥10% 且 ≥4s、播完写 100）→ 社区端教学页读取展示「学员进度」。2026-11-14 起上下架也走同一链路：社区端管理列表以 `?include_unpublished=true` 拉取全部课程，`POST /api/v1/courses/{course_id}/publication` 切换状态；老人端默认目录与详情过滤已下架课程，学习记录保留，重新发布后恢复。
 - **社区服务任务**：code3 后端 SQLite（`COMMUNITY_DATABASE_PATH`）前后端闭环，accept/complete 条件更新并发安全。
 - **监护人健康**：code2 后端 `/api/v1/health-overview/{elder_id}` + 前端六态状态化；未接硬件，Provider 恒 503（`health_data_source_unavailable`），前端映射「未接入硬件」空态。
 
-code2/code3 后端其余域均为契约骨架：code3 的救援/知识/课程 9 个操作返回结构化 501（社区端前端的救援与教学已绕开它们直连 code1）；code2 后端仅健康总览一个业务端点。三个 FastAPI 后端仍完全独立，互不导入内部代码。
+code2/code3 后端其余域均为契约骨架：code3 的救援/知识/课程 9 个操作返回结构化 501（社区端前端的救援与教学已绕开它们直连 code1；教学页的建课、目录、学习进度与上下架都调 code1，code3 的课程域保持 501）；code2 后端仅健康总览一个业务端点。三个 FastAPI 后端仍完全独立，互不导入内部代码。
 
 老人端内部现按页面、领域类型和组合函数分层：公共组件依赖 `types` 中的稳定类型，不依赖 `demo/data.ts`；`useElderApp` 只作为导航、演示、聊天、求助和健康检查模块的组装边界。Android 普通构建与设备签名/覆盖安装验收相互独立。
+
+## 验证层
+
+- 单测层：三端前端 Vitest、四个 Python 包 pytest。
+- 构建层：`scripts/verify-framework.ps1` 串起三端测试与 build/type-check。
+- 真实链路层（2026-11-14）：`scripts/verify-acceptance.ps1` 启动 code1/code2/code3 三个 FastAPI 子进程，把 `SOS_DATABASE_PATH` / `ELDER_DATABASE_PATH` / `COMMUNITY_DATABASE_PATH` 全部指向 `tempfile.mkdtemp` 下的临时库，在动态 `127.0.0.1` 端口上验证 SOS、课程、学习记录、课程上下架与社区服务任务，并通过重启进程验证持久化。验收不 import 后端代码、不直接读表、不依赖预置课程，结束后删除临时目录。
+- 两个验证入口互不调用，发布门禁要求两者都通过；`verify-framework.ps1` 保持零改动。
 
 ## 监护人端前端分层
 
@@ -70,7 +77,7 @@ types/          领域类型
 社区端已接入后端的页面（更新至 2026-11-14）：
 
 - **服务任务**（2026-11-01）：页面 → `composables/useServiceTasks` → `api/serviceTasks` + `mappers/serviceTaskMapper` + `domain/serviceFlow` → HTTP → FastAPI `api/service_tasks` → `services/service_tasks` → `ServiceTaskRepository` Protocol → `SqliteServiceTaskRepository`。
-- **教学课程**（2026-11）：页面 → `composables/useCoursePublish` → `api/elderCourses` + `mappers/courseMapper` → **跨直连 code1**（上传视频/建课/目录/学习进度，`VITE_COURSE_DATA_MODE=api`，`VITE_ELDER_API_BASE_URL`）；目录并行拉取学习记录合并展示「学员进度」，记录拉取失败不阻塞目录。
+- **教学课程**（2026-11）：页面 → `composables/useCoursePublish` → `api/elderCourses` + `mappers/courseMapper` → **跨直连 code1**（上传视频/建课/目录/学习进度/上下架，`VITE_COURSE_DATA_MODE=api`，`VITE_ELDER_API_BASE_URL`）；目录并行拉取学习记录合并展示「学员进度」，记录拉取失败不阻塞目录。上下架成功后重新拉取列表，失败保留旧列表并只显示错误提示（`updatingId` 做单请求互斥）。
 - **救援上报**（2026-11）：经 `data/sosProvider` + `api/sosEvents` 跨直连 code1 SOS 事件（`VITE_SOS_DATA_MODE=api`）。
 
 其余页面（内容、知识）仍来自 `mock/community.ts` 的工厂函数；mock 与真实数据互不共享，请求失败也不会回退到 mock。

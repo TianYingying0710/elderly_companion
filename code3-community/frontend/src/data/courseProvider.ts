@@ -23,6 +23,8 @@ function mockElderCourses(courses: Course[]): ElderCourseView[] {
     description: `演示数据：${course.note || course.content || '本地演示课程'}`,
     durationText: course.duration,
     hasVideo: false,
+    status: 'published',
+    editable: false,
   }))
 }
 

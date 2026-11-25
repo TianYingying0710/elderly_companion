@@ -5,14 +5,17 @@ import {
   createCourseCatalogProvider,
   createMockCourseCatalogProvider,
 } from './courseProvider'
+import type { CourseSummaryDto } from '../types/elderCourses'
 
-const dto = {
+const dto: CourseSummaryDto = {
   id: 'course-1',
   title: '智能手机基础操作',
   category: '数字素养',
   description: '从开关机到连 Wi-Fi。',
   duration_seconds: 600,
   video_url: '/api/v1/course-videos/v1',
+  status: 'published',
+  editable: true,
 }
 
 describe('courseProvider', () => {
@@ -23,6 +26,7 @@ describe('courseProvider', () => {
     expect(courses.length).toBeGreaterThan(0)
     expect(courses.every((course) => course.description.includes('演示数据'))).toBe(true)
     expect(courses.every((course) => !course.hasVideo)).toBe(true)
+    expect(courses.every((course) => course.status === 'published' && course.editable === false)).toBe(true)
   })
 
   it('api provider 映射 DTO 到视图', async () => {
@@ -37,6 +41,8 @@ describe('courseProvider', () => {
         description: '从开关机到连 Wi-Fi。',
         durationText: '约 10 分钟',
         hasVideo: true,
+        status: 'published',
+        editable: true,
       },
     ])
   })

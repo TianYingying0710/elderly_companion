@@ -5,6 +5,7 @@ from fastapi import UploadFile
 
 from silver_companion_elder.schemas.courses import (
     CourseDetail,
+    CourseStatus,
     CourseSummary,
     CreateCourseRequest,
 )
@@ -25,8 +26,18 @@ class CourseRepository(Protocol):
         self, file: UploadFile, max_bytes: int, chunk_size: int
     ) -> tuple[str, str]: ...
     def get_video_path(self, video_id: str) -> Path | None: ...
-    async def list_courses(self) -> list[CourseSummary]: ...
-    async def get_course(self, course_id: str) -> CourseDetail | None: ...
+    async def list_courses(
+        self, include_unpublished: bool = False
+    ) -> list[CourseSummary]: ...
+    async def get_course(
+        self, course_id: str, include_unpublished: bool = False
+    ) -> CourseDetail | None: ...
+    async def set_publication(
+        self,
+        course_id: str,
+        status: CourseStatus,
+        expected_status: CourseStatus,
+    ) -> CourseDetail | None: ...
     async def list_records(self) -> list[LearningRecord]: ...
     async def upsert_record(
         self, course_id: str, progress_percent: int
@@ -46,11 +57,6 @@ class SosEventRepository(Protocol):
         expected_status: SosEventStatus,
         note: str | None = None,
     ) -> SosEvent | None: ...
-
-
-class CourseRepository(Protocol):
-    async def list_courses(self) -> Sequence[CourseSummary]: ...
-    async def get_course(self, course_id: str) -> CourseDetail | None: ...
 
 
 class LearningRecordRepository(Protocol):
