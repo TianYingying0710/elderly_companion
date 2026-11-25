@@ -17,6 +17,7 @@ export function mapSosEvent(dto: SosEventDto): SosEventView {
     id: dto.id,
     elderId: dto.elder_id,
     time: dto.created_at.replace('T', ' ').slice(0, 19),
+    status: dto.status,
     statusLabel: status.label,
     statusKind: status.kind,
     note: dto.note ?? '',

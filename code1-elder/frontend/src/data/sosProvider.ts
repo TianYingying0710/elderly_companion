@@ -12,25 +12,20 @@ export interface SosCreateResult {
 export interface SosProvider {
   mode: SosSourceMode
   create: () => Promise<SosCreateResult>
-  /** 查询事件当前状态（处理进度展示用）；mock 模式不可用 */
-  get: (id: string) => Promise<SosEventStatus>
+  /** 查询事件当前状态与处置备注（处理进度展示用）；mock 模式不可用 */
+  get: (id: string) => Promise<SosEventDto>
   /** 真实求助记录列表；mock 模式返回空数组 */
   list: () => Promise<RequestRecord[]>
 }
 
-const elderApiBaseUrl = import.meta.env.VITE_ELDER_API_BASE_URL ?? 'http://127.0.0.1:8001'
+// SOS 上报地址：优先专用变量；没配时回退到同源 API 地址（两者都指向老人端后端 :8001），
+// 避免只写 VITE_API_BASE_URL 时静默退回 127.0.0.1（Android 端指向设备自身，必然失败）。
+const elderApiBaseUrl =
+  import.meta.env.VITE_ELDER_API_BASE_URL ??
+  import.meta.env.VITE_API_BASE_URL ??
+  'http://127.0.0.1:8001'
 
 const ELDER_ID = 'elder-001'
-
-const STATUSES: readonly string[] = ['pending', 'processing', 'resolved']
-
-function parseStatus(raw: unknown): SosEventStatus {
-  const record = raw as { status?: unknown } | null
-  if (typeof record?.status !== 'string' || !STATUSES.includes(record.status)) {
-    throw new Error('SOS 状态响应格式异常')
-  }
-  return record.status as SosEventStatus
-}
 
 function parseSosEvent(raw: unknown): SosEventDto {
   const record = raw as Partial<SosEventDto> | null
@@ -83,7 +78,7 @@ export function createApiSosProvider(baseUrl = elderApiBaseUrl): SosProvider {
       if (!Array.isArray(raw)) throw new Error('SOS 状态响应格式异常')
       const found = raw.find((event) => (event as { id?: unknown })?.id === id)
       if (found === undefined) throw new Error(`SOS 状态查询失败（HTTP 404）`)
-      return parseStatus(found)
+      return parseSosEvent(found)
     },
     list: async () => {
       const response = await fetch(`${baseUrl}/api/v1/sos-events?elder_id=${encodeURIComponent(ELDER_ID)}`)

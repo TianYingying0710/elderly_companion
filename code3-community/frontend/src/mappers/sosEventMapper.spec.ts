@@ -30,6 +30,7 @@ describe('sosEventMapper', () => {
       id: 'sos-1',
       elderId: 'elder-001',
       time: '2026-11-08 09:12:00',
+      status: 'pending',
       statusLabel: '待响应',
       statusKind: 'red',
       note: '',
@@ -38,5 +39,9 @@ describe('sosEventMapper', () => {
 
   it('keeps note text when present', () => {
     expect(mapSosEvent({ ...dto, note: '已上门' }).note).toBe('已上门')
+  })
+
+  it('保留原始状态，页面据此决定能推进到哪一步', () => {
+    expect(mapSosEvent({ ...dto, status: 'resolved' }).status).toBe('resolved')
   })
 })
