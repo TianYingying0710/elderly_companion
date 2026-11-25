@@ -2,9 +2,20 @@ import pytest
 from fastapi.testclient import TestClient
 
 from silver_companion_elder.main import create_app
+from silver_companion_elder.repositories import courses as courses_repository
+from silver_companion_elder.repositories import sqlite_courses
 from silver_companion_elder.repositories.courses import get_course_repository
 
 client = TestClient(create_app())
+
+
+@pytest.fixture(autouse=True)
+def isolated_video_dir(tmp_path, monkeypatch):
+    """上传用例产生的 mp4 只写进 tmp_path，不落到仓库真实的 data/uploads/videos/。"""
+    video_dir = tmp_path / "uploads" / "videos"
+    monkeypatch.setattr(courses_repository, "VIDEO_STORAGE_DIR", video_dir)
+    monkeypatch.setattr(sqlite_courses, "VIDEO_STORAGE_DIR", video_dir)
+    yield
 
 
 @pytest.fixture(autouse=True)

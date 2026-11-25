@@ -1,9 +1,11 @@
 """课程/视频/学习记录 SQLite 持久化实现（2026-11-14 用户授权例外，模式与 SOS 仓库一致）。
 
 四张表共用一个数据库文件（`ELDER_DATABASE_PATH`），只 `CREATE TABLE IF NOT EXISTS`：
-- courses：仅存社区端动态课程；预置演示课程不落库，读取时在内存层合并（避免 seed）。
+- courses：只存社区端真实发布并落库的课程。预置的 5 条虚构演示课程**不参与本实现**：
+  SQLite 即 API 模式的真实数据源，若在此合并演示课程，老人端会把虚构课程当成社区已发布课程展示。
+  演示课程只在内存实现（InMemoryCourseRepository）中出现，即 mock / 未配置数据库时的路径。
 - course_videos：video_id → 磁盘文件路径登记；文件本体仍在 data/uploads/videos/。
-- learning_records：course_id 主键 upsert，course_id 可以是预置或动态课程。
+- learning_records：course_id 主键 upsert，只接受库中真实存在的课程。
 - course_publications：动态课程发布状态（course_id 主键）；缺行视为 published。
 所有 `sqlite3.Error` 统一翻译为 `CourseStorageUnavailableError`（HTTP 503）。
 """
@@ -20,10 +22,7 @@ from silver_companion_elder.errors import (
     CourseNotFoundError,
     CourseStorageUnavailableError,
 )
-from silver_companion_elder.repositories.courses import (
-    VIDEO_STORAGE_DIR,
-    _demo_courses,
-)
+from silver_companion_elder.repositories.courses import VIDEO_STORAGE_DIR
 from silver_companion_elder.schemas.courses import (
     CourseDetail,
     CourseStatus,
@@ -79,7 +78,6 @@ DO UPDATE SET progress_percent = excluded.progress_percent,
 class SqliteCourseRepository:
     def __init__(self, database_path: str | Path) -> None:
         self._database_path = str(database_path)
-        self._demo = _demo_courses()
 
     def initialize(self) -> None:
         connection = self._connect()
@@ -200,6 +198,7 @@ class SqliteCourseRepository:
     async def list_courses(
         self, include_unpublished: bool = False
     ) -> list[CourseSummary]:
+        """只返回库里社区端发布过的课程；5 条演示课程不注入（两套课程彻底分离）。"""
         connection = self._connect()
         try:
             rows = connection.execute(
@@ -215,19 +214,7 @@ class SqliteCourseRepository:
         status_by_course = {
             row["course_id"]: CourseStatus(row["status"]) for row in publications
         }
-        summaries = [
-            CourseSummary(
-                id=course.id,
-                title=course.title,
-                category=course.category,
-                description=course.description,
-                duration_seconds=course.duration_seconds,
-                video_url=course.video_url,
-                status=CourseStatus.published,
-                editable=False,
-            )
-            for course in self._demo.values()
-        ]
+        summaries: list[CourseSummary] = []
         for row in rows:
             status = status_by_course.get(row["id"], CourseStatus.published)
             if not include_unpublished and status != CourseStatus.published:
@@ -249,9 +236,7 @@ class SqliteCourseRepository:
     async def get_course(
         self, course_id: str, include_unpublished: bool = False
     ) -> CourseDetail | None:
-        demo = self._demo.get(course_id)
-        if demo is not None:
-            return demo
+        """只按库中记录返回详情；演示课程 id 在此一律查不到（404）。"""
         connection = self._connect()
         try:
             row = connection.execute(
@@ -353,7 +338,8 @@ class SqliteCourseRepository:
         ]
 
     async def upsert_record(self, course_id: str, progress_percent: int) -> LearningRecord | None:
-        if course_id not in self._demo and not self._course_exists(course_id):
+        # 学习记录只能挂在库中真实存在的课程上；演示课程在 SQLite 路径下不存在。
+        if not self._course_exists(course_id):
             return None
         record = LearningRecord(
             course_id=course_id,

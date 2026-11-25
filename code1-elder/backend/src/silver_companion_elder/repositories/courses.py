@@ -20,8 +20,9 @@ from silver_companion_elder.schemas.courses import (
 from silver_companion_elder.schemas.learning import LearningRecord
 
 # 以下课程条目为虚构演示数据（演示阶段预置，不来自任何真实内容源）；
-# 默认进程内存储。设置 ELDER_DATABASE_PATH 后改用 SQLite 持久化
-# （动态课程、视频登记、学习记录落库，预置演示课程仍由代码提供、不 seed）。
+# 只在进程内存储（InMemoryCourseRepository）里出现，即 mock / 未配置数据库时的路径。
+# 设置 ELDER_DATABASE_PATH 后改用 SQLite 持久化，那条路径**只返回社区端真实发布的课程**，
+# 演示课程不注入、不合并、不 seed（两套课程彻底分离）。
 # 视频文件本体存放在 backend/data/uploads/videos/（不入 git）。
 
 ELDER_DATABASE_PATH_ENV = "ELDER_DATABASE_PATH"
@@ -76,7 +77,10 @@ def _demo_courses() -> dict[str, CourseDetail]:
 
 
 class InMemoryCourseRepository:
-    """课程目录（预置演示数据）与学习记录（进程内、重启即清）。"""
+    """课程目录（**仅 mock / 无数据库路径**使用）：预置演示课程 + 学习记录，进程内、重启即清。
+
+    这是 5 条虚构演示课程唯一存在的实现；SQLite 实现（API 模式）不注入它们。
+    """
 
     def __init__(self) -> None:
         self._courses = _demo_courses()
