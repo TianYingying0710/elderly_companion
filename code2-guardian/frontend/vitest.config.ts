@@ -13,5 +13,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.spec.ts'],
+    // env 固定为 mock：本机 .env.local 可能打开 api 交叉联调模式，
+    // 测试不应随开发者本机环境漂移（需要 api 的用例自己 stubEnv）。
+    env: { VITE_SOS_DATA_MODE: 'mock' },
   },
 })
